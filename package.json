@@ -10,12 +10,14 @@
   "author": "Mateus Pimentel",
   "license": "ISC",
   "devDependencies": {
+    "@types/ioredis": "^4.28.10",
     "@types/jest": "^28.1.1",
     "jest": "^28.1.1",
     "ts-jest": "^28.0.4",
+    "ts-node": "^10.8.1",
     "typescript": "^4.7.3"
   },
   "dependencies": {
-    "ts-node": "^10.8.1"
+    "ioredis": "^5.0.6"
   }
 }
