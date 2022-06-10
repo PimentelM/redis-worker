@@ -4,8 +4,18 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "test": "yarn test"
+    "test": "yarn test",
+    "dev": "ts-node ./src"
   },
   "author": "Mateus Pimentel",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jest": "^28.1.1",
+    "jest": "^28.1.1",
+    "ts-jest": "^28.0.4",
+    "typescript": "^4.7.3"
+  },
+  "dependencies": {
+    "ts-node": "^10.8.1"
+  }
 }
