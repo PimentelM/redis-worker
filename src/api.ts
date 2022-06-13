@@ -57,17 +57,17 @@ export class RedisCluster {
         let destinationHash = await destination.getHash();
 
         // Set destinationNode state as IMPORTING
-        await destination.command(...`cluster setslot ${slot} importing ${sourceHash}`.split(""))
+        await destination.command(...`cluster setslot ${slot} importing ${sourceHash}`.split(" "))
 
         // Set sourceNode state as MIGRATING
-        await source.command(...`cluster setslot ${slot} migrating ${destinationHash}`.split(""))
+        await source.command(...`cluster setslot ${slot} migrating ${destinationHash}`.split(" "))
 
         // Perform migration
         await source.command('migrate', destination.host, destination.port, '', 0, timeout, "keys", ...keys);
 
         // Restore nodes to original state
-        await source.command(...`cluster setslot ${slot} node ${destinationHash}`.split(""))
-        await destination.command(...`cluster setslot ${slot} node ${destinationHash}`.split(""))
+        await source.command(...`cluster setslot ${slot} node ${destinationHash}`.split(" "))
+        await destination.command(...`cluster setslot ${slot} node ${destinationHash}`.split(" "))
 
 
     }
