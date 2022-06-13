@@ -4,11 +4,11 @@ import {keyFromSlot} from "./const";
 
 
 export class RedisCluster {
-    public cluster : Cluster;
+    private ioredis : Cluster;
     private node : RedisNode;
 
     constructor(private host : {host: string, port: number},) {
-        this.cluster = new Cluster([this.host]);
+        this.ioredis = new Cluster([this.host]);
         this.node = new RedisNode(this.host.host, this.host.port);
     }
 
@@ -24,6 +24,14 @@ export class RedisCluster {
         let owner = await this.getSlotOwner(slot);
 
         return await owner.command('cluster', 'getkeysinslot', slot, '4294967295');
+    }
+
+    async set(key: string, value: string){
+        return this.ioredis.set(key, value);
+    }
+
+    async get(key: string){
+        return this.ioredis.get(key);
     }
 
     async getSlotOwner(slot:number): Promise<RedisNode>{

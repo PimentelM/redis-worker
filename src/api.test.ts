@@ -22,7 +22,7 @@ describe("Redis handmade API", () => {
     })
     
     describe("RedisCluster", ()=>{
-        let cluster;
+        let cluster : RedisCluster;
 
         beforeEach(async () => {
             cluster = new RedisCluster({host, port});
@@ -48,10 +48,10 @@ describe("Redis handmade API", () => {
         it("Can get list of keys at slot", async () => {
             let slot = 15495;
             let expectedKeys= ["a", "b{a}","c{a}"];
-            await cluster.cluster.set("a", "a");
-            await cluster.cluster.set("b{a}", "b");
-            await cluster.cluster.set("c{a}", "c");
-            await cluster.cluster.set("9f3", "d");
+            await cluster.set("a", "a");
+            await cluster.set("b{a}", "b");
+            await cluster.set("c{a}", "c");
+            await cluster.set("9f3", "d");
 
             let keys = await cluster.getKeysInSlot(slot);
 
