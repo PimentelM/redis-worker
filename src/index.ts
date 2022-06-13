@@ -18,7 +18,7 @@ let run = async () => {
     let nodeHashes = (await Promise.all(nodes.map(node => node.command("cluster", "nodes")))).map(x=>x.split(" ")[0]);
 
 
-    
+
 
 
 }
