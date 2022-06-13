@@ -23,7 +23,7 @@ export class RedisCluster {
     async getKeysInSlot(slot: number): Promise<string[]>{
         let owner = await this.getSlotOwner(slot);
 
-        return await owner.command('cluster', 'getkeysinslot', slot, '4294967295');
+        return owner.getKeysInSlot(slot);
     }
 
     async set(key: string, value: string){
@@ -111,7 +111,7 @@ export class RedisNode {
     }
 
     async getKeysInSlot(slot: number): Promise<string[]>{
-        return []
+        return await this.tedis.command('cluster', 'getkeysinslot', slot, '4294967295');
     }
 
 }
