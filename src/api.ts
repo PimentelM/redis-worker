@@ -3,15 +3,22 @@ import {Tedis} from "tedis";
 import {keyFromSlot} from "./const";
 
 
-export class RedisApi {
+export class RedisCluster {
     public cluster : Cluster;
+    private node : RedisNode;
 
     constructor(private host : {host: string, port: number},) {
         this.cluster = new Cluster([this.host]);
+        this.node = new RedisNode(this.host.host, this.host.port);
     }
 
     async listMasterNodes() : Promise<RedisNode[]>{
-        return []
+
+        let raw =  await this.node.command('cluster', 'nodes');
+
+        let nodes = raw.split("\n").filter(x=>x.includes("master") && (/^.*\d$/).test(x)).map(x=>x.split(" ")[1].split("@")[0].split(":")).map(x=>new RedisNode(x[0], parseInt(x[1])));
+
+        return nodes;
     }
 
     async listSlotsBySize(){}
@@ -21,7 +28,13 @@ export class RedisApi {
     }
 
     async getSlotOwner(slot:number): Promise<RedisNode>{
-       return new RedisNode(``,0)
+       for(let node of await this.listMasterNodes()){
+           if(await node.isSlotOwner(slot)){
+               return node;
+           }
+       }
+
+       throw new Error(`No node found for slot ${slot}`);
     }
 
     async migrateSlot(slot: number, destination: RedisNode, timeout = 2000){
