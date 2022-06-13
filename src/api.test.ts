@@ -28,7 +28,7 @@ describe("Redis handmade API", () => {
             cluster = new RedisCluster({host, port});
         });
         
-        it("Should be possible to get list of master nodes from cluster", async () => {
+        it("Can get list of Master Nodes", async () => {
             let masters = await cluster.listMasterNodes();
 
             expect(masters.length).toBe(3);
@@ -36,7 +36,7 @@ describe("Redis handmade API", () => {
                 {host, port},{host,port: port+1},{host,port: port+2}])
         })
 
-        it("Should be possible to get owner of slot", async () => {
+        it("Can get owner of slot", async () => {
             let slot = 15990;
             let expectedOwnerPort = 50003;
 
@@ -45,7 +45,7 @@ describe("Redis handmade API", () => {
             expect(owner.port).toBe(expectedOwnerPort);
         })
 
-        it("Should be possible to get list of keys at slot", async () => {
+        it("Can get list of keys at slot", async () => {
             let slot = 15495;
             let expectedKeys= ["a", "b{a}","c{a}"];
             await cluster.cluster.set("a", "a");
@@ -62,14 +62,14 @@ describe("Redis handmade API", () => {
     describe("RedisNode", () => {
 
 
-        it("Should be possible to get node hash from host and port", async () => {
+        it("Can get node hash // id", async () => {
             const redis = new RedisNode(host, port);
             const hash = await redis.getHash();
             expect(hash).toMatch(/^[0-9a-f]{40}$/);
         })
 
         const owershipTable = [[0, true], [500, true], [5000, true], [5460, true], [6000, false], [9000, false], [11000, false], [16000, false]]
-        it.each(owershipTable)("Should be possible to know if a node is owner of a slot", async (slot, expected) => {
+        it.each(owershipTable)("Can tell if node is owner of slot", async (slot, expected) => {
             const redis = new RedisNode(host, port);
             const isOwner = await redis.isSlotOwner(slot as number);
             expect(isOwner).toBe(expected);
