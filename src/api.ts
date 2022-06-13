@@ -1,5 +1,6 @@
-import IORedis, {Cluster} from "ioredis";
+import {Cluster} from "ioredis";
 import {Tedis} from "tedis";
+import {keyFromSlot} from "./const";
 
 
 export class RedisApi {
@@ -80,13 +81,7 @@ export class RedisNode {
     }
 
     async isSlotOwner(slot: number): Promise<boolean>{
-        let rawSlotTable = await this.command('cluster', 'slots');
-
-        let rawRanges = rawSlotTable.split(/^(\d)+\)/)
-
-
-        return false
-
+        return await this.tedis.get(keyFromSlot(slot)).then(x => true).catch(x => false);
     }
 
     async getKeysInSlot(slot: number): Promise<string[]>{

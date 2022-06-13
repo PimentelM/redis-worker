@@ -1,6 +1,7 @@
 import {promisify} from 'util';
 import {exec as _exec} from 'child_process';
-import {RedisNode} from "../api";
+import {RedisNode} from "./api";
+import calculateSlot from "cluster-key-slot";
 const exec = promisify(_exec);
 
 
@@ -24,6 +25,14 @@ describe("Redis handmade API", () => {
         const redis = new RedisNode(host, port);
         const hash = await redis.getHash();
         expect(hash).toMatch(/^[0-9a-f]{40}$/);
+    })
+
+    const owershipTable = [[0,true],[500,true],[5000,true],[5460,true],[6000,false],[9000,false],[11000,false],[16000,false]]
+    it.each(owershipTable)( "Should be possible to know if a node is owner of a slot", async (slot,expected) => {
+        const redis = new RedisNode(host, port);
+        const isOwner = await redis.isSlotOwner(slot as number);
+        expect(isOwner).toBe(expected);
+
     })
 
 
