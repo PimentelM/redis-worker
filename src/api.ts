@@ -101,7 +101,13 @@ export class RedisNode {
     }
 
     async isSlotOwner(slot: number): Promise<boolean>{
-        return await this.tedis.get(keyFromSlot(slot)).then(x => true).catch(x => false);
+        return await this.tedis.get(keyFromSlot(slot)).then(x => true)
+            .catch(err => {
+                if(err.toString().includes("MOVED")){
+                    return false;
+                }
+                throw(err);
+            });
     }
 
     async getKeysInSlot(slot: number): Promise<string[]>{
