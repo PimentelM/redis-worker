@@ -13,18 +13,17 @@ export class RedisCluster {
     }
 
     async listMasterNodes() : Promise<RedisNode[]>{
-
         let raw =  await this.node.command('cluster', 'nodes');
 
-        let nodes = raw.split("\n").filter(x=>x.includes("master") && (/^.*\d$/).test(x)).map(x=>x.split(" ")[1].split("@")[0].split(":")).map(x=>new RedisNode(x[0], parseInt(x[1])));
-
-        return nodes;
+        return raw.split("\n").filter(x => x.includes("master") && (/^.*\d$/).test(x)).map(x => x.split(" ")[1].split("@")[0].split(":")).map(x => new RedisNode(x[0], parseInt(x[1])));
     }
 
     async listSlotsBySize(){}
 
     async getKeysInSlot(slot: number): Promise<string[]>{
-        return []
+        let owner = await this.getSlotOwner(slot);
+
+        return await owner.command('cluster', 'getkeysinslot', slot, '4294967295');
     }
 
     async getSlotOwner(slot:number): Promise<RedisNode>{

@@ -22,10 +22,13 @@ describe("Redis handmade API", () => {
     })
     
     describe("RedisCluster", ()=>{
+        let cluster;
+
+        beforeEach(async () => {
+            cluster = new RedisCluster({host, port});
+        });
         
         it("Should be possible to get list of master nodes from cluster", async () => {
-            let cluster = new RedisCluster({host, port});
-
             let masters = await cluster.listMasterNodes();
 
             expect(masters.length).toBe(3);
@@ -34,13 +37,25 @@ describe("Redis handmade API", () => {
         })
 
         it("Should be possible to get owner of slot", async () => {
-            let slot = 15495
+            let slot = 15990;
             let expectedOwnerPort = 50003;
-            let cluster = new RedisCluster({host, port});
 
             let owner = await cluster.getSlotOwner(slot);
 
             expect(owner.port).toBe(expectedOwnerPort);
+        })
+
+        it("Should be possible to get list of keys at slot", async () => {
+            let slot = 15495;
+            let expectedKeys= ["a", "b{a}","c{a}"];
+            await cluster.cluster.set("a", "a");
+            await cluster.cluster.set("b{a}", "b");
+            await cluster.cluster.set("c{a}", "c");
+            await cluster.cluster.set("9f3", "d");
+
+            let keys = await cluster.getKeysInSlot(slot);
+
+            expect(keys.sort()).toEqual(expectedKeys.sort());
         })
     })
 
