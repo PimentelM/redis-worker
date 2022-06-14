@@ -27,11 +27,11 @@ export class RedisCluster {
     }
 
     async set(key: string, value: string){
-        return this.ioredis.set(key, value);
+        return new Promise((resolve, reject) => this.ioredis.set(key, value).then(resolve).catch(reject));
     }
 
     async get(key: string){
-        return this.ioredis.get(key);
+        return new Promise((resolve, reject) => this.ioredis.get(key).then(resolve).catch(reject));
     }
 
     async getSlotOwner(slot:number): Promise<RedisNode>{
@@ -73,7 +73,11 @@ export class RedisCluster {
     }
 
     async flushdb() {
-        return this.ioredis.flushdb();
+        return new Promise((resolve, reject)=>this.ioredis.flushdb("SYNC").then(resolve).catch(reject));
+    }
+
+    async memoryUsage(key: string) {
+        return new Promise((resolve, reject) => this.ioredis.memory("USAGE", key).then(resolve).catch(reject));
     }
 }
 

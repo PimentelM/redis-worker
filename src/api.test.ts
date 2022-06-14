@@ -20,15 +20,16 @@ describe("Redis handmade API", () => {
         // Stop redis server
         console.log(await stopRedis());
     })
+
+    let cluster : RedisCluster;
+
+    beforeEach(async () => {
+        cluster = new RedisCluster({host, port});
+        await cluster.flushdb();
+    });
     
     describe("RedisCluster", ()=>{
-        let cluster : RedisCluster;
 
-        beforeEach(async () => {
-            cluster = new RedisCluster({host, port});
-            await cluster.flushdb();
-        });
-        
         it("Can get list of Master Nodes", async () => {
             let masters = await cluster.listMasterNodes();
 
@@ -76,6 +77,37 @@ describe("Redis handmade API", () => {
             expect(await source.getKeysInSlot(slot)).toEqual([]);
             expect(await source.getKeysInSlot(calculateSlot("9f3"))).toEqual(["9f3"]);
         })
+
+        it("Can flushdb", async () => {
+            await cluster.set("a", "a");
+            await cluster.set("b{a}", "b");
+            let result = await cluster.flushdb();
+            expect(await cluster.getKeysInSlot(calculateSlot("a"))).toEqual([]);
+        })
+
+        it("Can get keys in slot", async () => {
+            await cluster.set("a", "a");
+            await cluster.set("b{a}", "b");
+            await cluster.set("c{a}", "c");
+            expect((await cluster.getKeysInSlot(calculateSlot("a"))).sort()).toEqual(["a", "b{a}","c{a}"]);
+        })
+
+        it("Can get memory usage of key", async () => {
+            await cluster.set("a", "a");
+
+            expect(await cluster.memoryUsage("a")).toBeGreaterThan(50);
+        })
+    })
+
+    describe("Live Resharding", ()=>{
+
+        it("Can migrate slots containing 5MB of data", async () => {
+
+
+        })
+
+
+
     })
 
     describe("RedisNode", () => {
@@ -112,4 +144,8 @@ async function stopRedis() {
 
 function byPortNumber(a: RedisNode, b: RedisNode) {
     return a.port - b.port;
+}
+
+function generateRandomHexString(){
+    return (Math.random()*2147483648).toString(16);
 }
