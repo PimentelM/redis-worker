@@ -72,6 +72,9 @@ export class RedisCluster {
 
     }
 
+    async flushdb() {
+        return this.ioredis.flushdb();
+    }
 }
 
 

@@ -26,6 +26,7 @@ describe("Redis handmade API", () => {
 
         beforeEach(async () => {
             cluster = new RedisCluster({host, port});
+            await cluster.flushdb();
         });
         
         it("Can get list of Master Nodes", async () => {
@@ -56,6 +57,24 @@ describe("Redis handmade API", () => {
             let keys = await cluster.getKeysInSlot(slot);
 
             expect(keys.sort()).toEqual(expectedKeys.sort());
+        })
+
+        it("Can migrate slot from shard to another", async () => {
+            let slot = 15495;
+            await cluster.set("a", "a");
+            await cluster.set("b{a}", "b");
+            await cluster.set("c{a}", "c");
+            await cluster.set("9f3", "d");
+            let destination = await cluster.getSlotOwner(0);
+            let source = await cluster.getSlotOwner(slot);
+
+            await cluster.migrateSlot(slot, destination);
+
+            expect(await source.isSlotOwner(slot)).toBe(false);
+            expect(await destination.isSlotOwner(slot)).toBe(true);
+            expect(await destination.getKeysInSlot(slot)).toEqual(["a", "b{a}","c{a}"]);
+            expect(await source.getKeysInSlot(slot)).toEqual([]);
+            expect(await source.getKeysInSlot(calculateSlot("9f3"))).toEqual(["9f3"]);
         })
     })
 
