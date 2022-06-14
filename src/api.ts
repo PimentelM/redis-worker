@@ -47,6 +47,11 @@ export class RedisCluster {
         return new Promise((resolve, reject) => this.ioredis.hgetall(key).then(resolve).catch(reject));
     }
 
+    async getAllKeys() {
+        let nodes = await this.listMasterNodes();
+        return (await Promise.all(nodes.map(node => node.getAllKeys()))).flat();
+    }
+
     async getSlotOwner(slot:number): Promise<RedisNode>{
        for(let node of await this.listMasterNodes()){
            if(await node.isSlotOwner(slot)){
@@ -135,4 +140,7 @@ export class RedisNode {
         return await this.tedis.command('cluster', 'getkeysinslot', slot, '4294967295');
     }
 
+    async getAllKeys() {
+        return await this.tedis.keys("*");
+    }
 }
