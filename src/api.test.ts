@@ -2,6 +2,8 @@ import {promisify} from 'util';
 import {exec as _exec} from 'child_process';
 import {RedisCluster, RedisNode} from "./api";
 import calculateSlot from "cluster-key-slot";
+import {randomBytes} from 'crypto';
+import {keyFromSlot} from "./const";
 
 const exec = promisify(_exec);
 
@@ -21,21 +23,21 @@ describe("Redis handmade API", () => {
         console.log(await stopRedis());
     })
 
-    let cluster : RedisCluster;
+    let cluster: RedisCluster;
 
     beforeEach(async () => {
         cluster = new RedisCluster({host, port});
         await cluster.flushdb();
     });
-    
-    describe("RedisCluster", ()=>{
+
+    describe("RedisCluster", () => {
 
         it("Can get list of Master Nodes", async () => {
             let masters = await cluster.listMasterNodes();
 
             expect(masters.length).toBe(3);
             expect(masters.sort(byPortNumber)).toMatchObject([
-                {host, port},{host,port: port+1},{host,port: port+2}])
+                {host, port}, {host, port: port + 1}, {host, port: port + 2}])
         })
 
         it("Can get owner of slot", async () => {
@@ -49,7 +51,7 @@ describe("Redis handmade API", () => {
 
         it("Can get list of keys at slot", async () => {
             let slot = 15495;
-            let expectedKeys= ["a", "b{a}","c{a}"];
+            let expectedKeys = ["a", "b{a}", "c{a}"];
             await cluster.set("a", "a");
             await cluster.set("b{a}", "b");
             await cluster.set("c{a}", "c");
@@ -60,36 +62,87 @@ describe("Redis handmade API", () => {
             expect(keys.sort()).toEqual(expectedKeys.sort());
         })
 
-        it("Can migrate slot from shard to another", async () => {
-            let slot = 15495;
-            await cluster.set("a", "a");
-            await cluster.set("b{a}", "b");
-            await cluster.set("c{a}", "c");
-            await cluster.set("9f3", "d");
-            let destination = await cluster.getSlotOwner(0);
-            let source = await cluster.getSlotOwner(slot);
+        describe("Live Resharding", () => {
+            it("Can migrate slot from shard to another", async () => {
+                let slot = 15495;
+                await cluster.set("a", "a");
+                await cluster.set("b{a}", "b");
+                await cluster.set("c{a}", "c");
+                await cluster.set("9f3", "d");
+                let destination = await cluster.getSlotOwner(0);
+                let source = await cluster.getSlotOwner(slot);
 
-            await cluster.migrateSlot(slot, destination);
+                await cluster.migrateSlot(slot, destination);
 
-            expect(await source.isSlotOwner(slot)).toBe(false);
-            expect(await destination.isSlotOwner(slot)).toBe(true);
-            expect(await destination.getKeysInSlot(slot)).toEqual(["a", "b{a}","c{a}"]);
-            expect(await source.getKeysInSlot(slot)).toEqual([]);
-            expect(await source.getKeysInSlot(calculateSlot("9f3"))).toEqual(["9f3"]);
+                expect(await source.isSlotOwner(slot)).toBe(false);
+                expect(await destination.isSlotOwner(slot)).toBe(true);
+                expect(await destination.getKeysInSlot(slot)).toEqual(["a", "b{a}", "c{a}"]);
+                expect(await source.getKeysInSlot(slot)).toEqual([]);
+                expect(await source.getKeysInSlot(calculateSlot("9f3"))).toEqual(["9f3"]);
+            })
+
+            it.each([5,10,20,40,80,160,320])("Can migrate simple key with %iMB of data", async (MB) => {
+                let slot = 15000 + MB;
+                let key = keyFromSlot(slot);
+                let source = await cluster.getSlotOwner(slot);
+                let destination = await cluster.getSlotOwner(0);
+                console.time("PopulateData")
+                let data = randomBytes(MB * 1024 * 1024/2).toString('hex');
+                await cluster.set(key, data);
+                console.timeEnd("PopulateData")
+
+                console.time("MigrateData")
+                await cluster.migrateSlot(slot, destination);
+                console.timeEnd("MigrateData")
+
+                expect(await source.isSlotOwner(slot)).toBe(false);
+                expect(await destination.isSlotOwner(slot)).toBe(true);
+                expect(await destination.getKeysInSlot(slot)).toEqual([key]);
+                expect(await source.getKeysInSlot(slot)).toEqual([]);
+
+            },24000)
+
+            it.each([5,10,20,40])("Can migrate hash key with %i000 small entries", async (n) => {
+                let slot = 13000 + n;
+                n *= 1000;
+                let key = keyFromSlot(slot);
+                let source = await cluster.getSlotOwner(slot);
+                let destination = await cluster.getSlotOwner(0);
+                console.time("PopulateData")
+                for(let i = 0; i < n; i++)
+                    await cluster.hset(key,"field" + i.toString(), "value" + i.toString());
+                console.timeEnd("PopulateData")
+
+                expect(await cluster.memoryUsage(key)).toBeGreaterThan(50)
+                expect(await cluster.hgetall(key)).toBeDefined()
+
+                console.time("MigrateData")
+                await cluster.migrateSlot(slot, destination);
+                console.timeEnd("MigrateData")
+
+                expect(await source.isSlotOwner(slot)).toBe(false);
+                expect(await destination.isSlotOwner(slot)).toBe(true);
+                expect(await destination.getKeysInSlot(slot)).toEqual([key]);
+                expect(await source.getKeysInSlot(slot)).toEqual([]);
+            })
         })
 
-        it("Can flushdb", async () => {
-            await cluster.set("a", "a");
-            await cluster.set("b{a}", "b");
+        it.skip("Can flushdb", async () => {
+            await cluster.set("b", "a");
+            await cluster.set("b{b}", "b");
+
             let result = await cluster.flushdb();
-            expect(await cluster.getKeysInSlot(calculateSlot("a"))).toEqual([]);
+
+            expect(result).toBe("OK");
+            expect(await cluster.getKeysInSlot(calculateSlot("b"))).toEqual([]);
         })
 
         it("Can get keys in slot", async () => {
             await cluster.set("a", "a");
             await cluster.set("b{a}", "b");
             await cluster.set("c{a}", "c");
-            expect((await cluster.getKeysInSlot(calculateSlot("a"))).sort()).toEqual(["a", "b{a}","c{a}"]);
+
+            expect((await cluster.getKeysInSlot(calculateSlot("a"))).sort()).toEqual(["a", "b{a}", "c{a}"]);
         })
 
         it("Can get memory usage of key", async () => {
@@ -97,17 +150,6 @@ describe("Redis handmade API", () => {
 
             expect(await cluster.memoryUsage("a")).toBeGreaterThan(50);
         })
-    })
-
-    describe("Live Resharding", ()=>{
-
-        it("Can migrate slots containing 5MB of data", async () => {
-
-
-        })
-
-
-
     })
 
     describe("RedisNode", () => {
@@ -146,6 +188,6 @@ function byPortNumber(a: RedisNode, b: RedisNode) {
     return a.port - b.port;
 }
 
-function generateRandomHexString(){
-    return (Math.random()*2147483648).toString(16);
+function generateRandomHexString() {
+    return Math.floor(Math.random() * 200000000).toString(16);
 }

@@ -1,6 +1,7 @@
 import {Cluster} from "ioredis";
 import {Tedis} from "tedis";
 import {keyFromSlot} from "./const";
+import * as Buffer from "buffer";
 
 
 export class RedisCluster {
@@ -26,12 +27,24 @@ export class RedisCluster {
         return owner.getKeysInSlot(slot);
     }
 
-    async set(key: string, value: string){
+    async set(key: string, value: string | Buffer | number){
         return new Promise((resolve, reject) => this.ioredis.set(key, value).then(resolve).catch(reject));
     }
 
     async get(key: string){
         return new Promise((resolve, reject) => this.ioredis.get(key).then(resolve).catch(reject));
+    }
+
+    async hset(key: string, field: string, value: string | Buffer | number) {
+        return new Promise((resolve, reject) => this.ioredis.hset(key, field, value).then(resolve).catch(reject));
+    }
+
+    async hget(key: string, field: string) {
+        return new Promise((resolve, reject) => this.ioredis.hget(key, field).then(resolve).catch(reject));
+    }
+
+    async hgetall(key){
+        return new Promise((resolve, reject) => this.ioredis.hgetall(key).then(resolve).catch(reject));
     }
 
     async getSlotOwner(slot:number): Promise<RedisNode>{
@@ -73,6 +86,7 @@ export class RedisCluster {
     }
 
     async flushdb() {
+        await new Promise((resolve,reject) => this.ioredis.flushall().then(resolve).catch(reject));
         return new Promise((resolve, reject)=>this.ioredis.flushdb("SYNC").then(resolve).catch(reject));
     }
 
@@ -108,7 +122,7 @@ export class RedisNode {
     }
 
     async isSlotOwner(slot: number): Promise<boolean>{
-        return await this.tedis.get(keyFromSlot(slot)).then(x => true)
+        return await this.tedis.get(`this_key_should_never_exist{${keyFromSlot(slot)}}${Math.random()}`).then(x => true)
             .catch(err => {
                 if(err.toString().includes("MOVED")){
                     return false;
