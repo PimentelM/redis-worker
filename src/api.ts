@@ -41,6 +41,14 @@ export class RedisCluster {
         return new Promise((resolve, reject) => this.ioredis.hset(key, field, value).then(resolve).catch(reject));
     }
 
+    async zadd(key: string, score: number, value: string, ...args: (string|number)[]) {
+        return new Promise((resolve, reject) => this.ioredis.zadd(key, score, value, ...args).then(resolve).catch(reject));
+    }
+
+    async sadd(key: string, value: string, ...args: (string|number)[]) {
+        return new Promise((resolve, reject) => this.ioredis.sadd(key, value, ...args).then(resolve).catch(reject));
+    }
+
     async hget(key: string, field: string) {
         return new Promise((resolve, reject) => this.ioredis.hget(key, field).then(resolve).catch(reject));
     }

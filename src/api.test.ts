@@ -98,9 +98,10 @@ describe("Redis handmade API", () => {
             })
 
             it("Memory usage should be lesser after migration", async () => {
+                let dataSize = 1024 * 1024 * 20
                 let slot = 16100;
                 let key = `lesserMemory{${hashKeyFromSlot(slot)}}`;
-                let value = 'x'.repeat(1024 * 1024 * 20/2);
+                let value = 'x'.repeat(dataSize);
                 let source = await cluster.getSlotOwner(slot);
                 let destination = await cluster.getSlotOwner(0);
                 await cluster.set(key, value);
@@ -108,19 +109,19 @@ describe("Redis handmade API", () => {
 
                 await cluster.migrateSlot(slot, destination);
 
-                let {usedMemory: usedMemoryAfterMigration } = await destination.info();
+                let {usedMemory: usedMemoryAfterMigration } = await source.info();
                 let difference = usedMemoryBeforeMigration - usedMemoryAfterMigration;
                 expect(usedMemoryAfterMigration).toBeLessThan(usedMemoryBeforeMigration);
-                expect(difference).toBeGreaterThan(1024 * 1024 * 20);
+                expect(difference).toBeGreaterThan(dataSize * 0.9);
             })
 
-            it.each([50, 100, 200, 400])("Can migrate simple key with %iMB of data", async (MB) => {
+            it.each([50, 100, 200])("Can migrate simple key with %iMB of data", async (MB) => {
                 let slot = 15000 + MB;
                 let key = hashKeyFromSlot(slot);
                 let source = await cluster.getSlotOwner(slot);
                 let destination = await cluster.getSlotOwner(0);
                 console.time("PopulateData")
-                let data = 'x'.repeat(MB/2 * 1024 * 1024);
+                let data = 'x'.repeat(MB * 1024 * 1024);
                 await cluster.set(key, data);
                 console.timeEnd("PopulateData")
 
