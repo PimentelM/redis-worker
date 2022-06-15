@@ -27,7 +27,7 @@ describe("Redis handmade API", () => {
 
     beforeEach(async () => {
         cluster = new RedisCluster({host, port});
-        await cluster.flushdb();
+       // await cluster.flushdb();
     });
 
     describe("RedisCluster", () => {
@@ -96,13 +96,13 @@ describe("Redis handmade API", () => {
                 expect(await source.getKeysInSlot(calculateSlot("9f3"))).toEqual(["9f3"]);
             })
 
-            it.each([5, 10, 20 /*, 40, 80, 160, 320*/])("Can migrate simple key with %iMB of data", async (MB) => {
+            it.each([50, 100, 200, 400])("Can migrate simple key with %iMB of data", async (MB) => {
                 let slot = 15000 + MB;
                 let key = keyFromSlot(slot);
                 let source = await cluster.getSlotOwner(slot);
                 let destination = await cluster.getSlotOwner(0);
                 console.time("PopulateData")
-                let data = randomBytes(MB * 1024 * 1024 / 2).toString('hex');
+                let data = 'x'.repeat(MB * 1024 * 1024);
                 await cluster.set(key, data);
                 console.timeEnd("PopulateData")
 
@@ -117,7 +117,7 @@ describe("Redis handmade API", () => {
 
             }, 24000)
 
-            it.each([5, 10/*, 20, 40*/])("Can migrate hash key with %i000 small entries", async (n) => {
+            it.skip.each([5, 10/*, 20, 40*/])("Can migrate hash key with %i000 small entries", async (n) => {
                 let slot = 13000 + n;
                 n *= 1000;
                 let key = keyFromSlot(slot);
@@ -184,11 +184,13 @@ describe("Redis handmade API", () => {
 
 
 async function restartRedis() {
-    return await exec("./src/scripts/cluster.sh start")
+     let res = await new Promise( (resolve, reject) => exec("./src/scripts/cluster.sh start").then(resolve).catch(reject))
+    await sleep(1000);
+    return res;
 }
 
 async function stopRedis() {
-    return await exec("./src/scripts/cluster.sh stop")
+    return await new Promise( (resolve, reject) => exec("./src/scripts/cluster.sh stop").then(resolve).catch(reject))
 }
 
 function byPortNumber(a: RedisNode, b: RedisNode) {
@@ -197,4 +199,8 @@ function byPortNumber(a: RedisNode, b: RedisNode) {
 
 function generateRandomHexString() {
     return Math.floor(Math.random() * 200000000).toString(16);
+}
+
+async function sleep(number: number) {
+    return new Promise(resolve => setTimeout(resolve, number));
 }
