@@ -1,7 +1,9 @@
 import {Cluster} from "ioredis";
 import {Tedis} from "tedis";
-import {keyFromSlot} from "./const";
+import {hashKeyFromSlot} from "./const";
 import * as Buffer from "buffer";
+import _ from "lodash";
+import calculateSlot from "cluster-key-slot";
 
 
 export class RedisCluster {
@@ -114,6 +116,24 @@ export class RedisNode {
         this.tedis = new Tedis({host, port});
     }
 
+    async info() : Promise<NodeInfo & any> {
+        let arrayOfData = await this.tedis.command("info");
+        let result = {};
+
+        for (let line of arrayOfData){
+            if(line.includes(":")){
+                let [key, value] = line.split(":");
+                if(/^\d*$/.test(value)){
+                    value = parseInt(value);
+                }
+                result[_.camelCase(key)] = value;
+            }
+        }
+
+        return result as NodeInfo;
+
+    }
+
     async command(...args: Array<string | number>): Promise<any>{
         return this.tedis.command(...args);
     }
@@ -127,7 +147,7 @@ export class RedisNode {
     }
 
     async isSlotOwner(slot: number): Promise<boolean>{
-        return await this.tedis.get(`this_key_should_never_exist{${keyFromSlot(slot)}}${Math.random()}`).then(x => true)
+        return await this.tedis.get(`this_key_should_never_exist{${hashKeyFromSlot(slot)}}${Math.random()}`).then(x => true)
             .catch(err => {
                 if(err.toString().includes("MOVED")){
                     return false;
@@ -143,4 +163,19 @@ export class RedisNode {
     async getAllKeys() {
         return await this.tedis.keys("*");
     }
+
+    async memoryUsage(key: string) {
+        return await this.tedis.command("MEMORY","USAGE", key);
+    }
+
+    async getAllKeysWithMemoryUsage() : Promise<{key: string, memoryUsage: number, slot: number}[]> {
+        let keys = await this.getAllKeys();
+        let results = await Promise.all(keys.map(key => this.memoryUsage(key)));
+        let result = keys.map((key, index) => ({key, memoryUsage: results[index], slot: calculateSlot(key)}));
+        return _.sortBy(result, x => x.memoryUsage);
+    }
+}
+
+interface NodeInfo {
+    usedMemory: number;
 }

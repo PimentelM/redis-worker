@@ -1,4 +1,4 @@
-export const keyFromSlot = slot => keyOfSlot[slot]
+export const hashKeyFromSlot = slot => keyOfSlot[slot]
 
 let keyOfSlot = {
     "0": "265b",

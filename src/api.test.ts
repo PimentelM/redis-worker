@@ -3,7 +3,8 @@ import {exec as _exec} from 'child_process';
 import {RedisCluster, RedisNode} from "./api";
 import calculateSlot from "cluster-key-slot";
 import {randomBytes} from 'crypto';
-import {keyFromSlot} from "./const";
+import {hashKeyFromSlot} from "./const";
+import {result} from "lodash";
 
 const exec = promisify(_exec);
 
@@ -63,9 +64,9 @@ describe("Redis handmade API", () => {
         })
 
         it("Can get all keys in cluster", async () => {
-            let key1 = `all{${keyFromSlot(1)}}`;
-            let key2 = `all{${keyFromSlot(7500)}}`;
-            let key3 = `all{${keyFromSlot(13000)}}`;
+            let key1 = `all{${hashKeyFromSlot(1)}}`;
+            let key2 = `all{${hashKeyFromSlot(7500)}}`;
+            let key3 = `all{${hashKeyFromSlot(13000)}}`;
             await cluster.set(key1, "a");
             await cluster.set(key2, "b");
             await cluster.set(key3, "c");
@@ -96,13 +97,30 @@ describe("Redis handmade API", () => {
                 expect(await source.getKeysInSlot(calculateSlot("9f3"))).toEqual(["9f3"]);
             })
 
+            it("Memory usage should be lesser after migration", async () => {
+                let slot = 16100;
+                let key = `lesserMemory{${hashKeyFromSlot(slot)}}`;
+                let value = 'x'.repeat(1024 * 1024 * 20/2);
+                let source = await cluster.getSlotOwner(slot);
+                let destination = await cluster.getSlotOwner(0);
+                await cluster.set(key, value);
+                let {usedMemory: usedMemoryBeforeMigration } = await source.info();
+
+                await cluster.migrateSlot(slot, destination);
+
+                let {usedMemory: usedMemoryAfterMigration } = await destination.info();
+                let difference = usedMemoryBeforeMigration - usedMemoryAfterMigration;
+                expect(usedMemoryAfterMigration).toBeLessThan(usedMemoryBeforeMigration);
+                expect(difference).toBeGreaterThan(1024 * 1024 * 20);
+            })
+
             it.each([50, 100, 200, 400])("Can migrate simple key with %iMB of data", async (MB) => {
                 let slot = 15000 + MB;
-                let key = keyFromSlot(slot);
+                let key = hashKeyFromSlot(slot);
                 let source = await cluster.getSlotOwner(slot);
                 let destination = await cluster.getSlotOwner(0);
                 console.time("PopulateData")
-                let data = 'x'.repeat(MB * 1024 * 1024);
+                let data = 'x'.repeat(MB/2 * 1024 * 1024);
                 await cluster.set(key, data);
                 console.timeEnd("PopulateData")
 
@@ -120,7 +138,7 @@ describe("Redis handmade API", () => {
             it.skip.each([5, 10/*, 20, 40*/])("Can migrate hash key with %i000 small entries", async (n) => {
                 let slot = 13000 + n;
                 n *= 1000;
-                let key = keyFromSlot(slot);
+                let key = hashKeyFromSlot(slot);
                 let source = await cluster.getSlotOwner(slot);
                 let destination = await cluster.getSlotOwner(0);
                 console.time("PopulateData")
@@ -140,6 +158,10 @@ describe("Redis handmade API", () => {
                 expect(await destination.getKeysInSlot(slot)).toEqual([key]);
                 expect(await source.getKeysInSlot(slot)).toEqual([]);
             },12000)
+
+            it.skip("Can read key from node while it is being migrated", async () => {
+
+            })
         })
 
         it.skip("Can flushdb", async () => {
@@ -166,6 +188,35 @@ describe("Redis handmade API", () => {
             const redis = new RedisNode(host, port);
             const hash = await redis.getHash();
             expect(hash).toMatch(/^[0-9a-f]{40}$/);
+        })
+
+        it("Info should contain memory usage", async () => {
+          let info = await new RedisNode(host, port).info();
+
+            expect(info.usedMemory).toBeDefined();
+        })
+
+        it("Can get memory usage from key", async () => {
+          let node = new RedisNode(host, port);
+          let key = hashKeyFromSlot(750);
+          await node.command("set", key, "a");
+
+          let result = await node.memoryUsage(key);
+
+          expect(result).toBeGreaterThan(50);
+        })
+
+        it("Can get all keys with memory usage", async () => {
+            let node = new RedisNode(host, port);
+            let key = hashKeyFromSlot(751);
+            await node.command("set", key, "a");
+
+            let result = await node.getAllKeysWithMemoryUsage();
+
+            expect(result.length).toBeGreaterThan(0);
+            expect(result.find(x=>x.key === key)).toBeDefined();
+            expect(result.find(x=>x.key === key)!.memoryUsage).toBeGreaterThan(50);
+
         })
 
         const owershipTable = [[0, true], [500, true], [5000, true], [5460, true], [6000, false], [9000, false], [11000, false], [16000, false]]

@@ -12,6 +12,7 @@
   "devDependencies": {
     "@types/ioredis": "^4.28.10",
     "@types/jest": "^28.1.1",
+    "@types/lodash": "^4.14.182",
     "jest": "^28.1.1",
     "ts-jest": "^28.0.4",
     "ts-node": "^10.8.1",
@@ -20,6 +21,7 @@
   "dependencies": {
     "cluster-key-slot": "^1.1.0",
     "ioredis": "^5.0.6",
+    "lodash": "^4.17.21",
     "tedis": "^0.1.12"
   }
 }
