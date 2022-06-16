@@ -199,25 +199,26 @@ describe("Redis handmade API", () => {
                 let destination = await cluster.getSlotOwner(0);
                 let source = await cluster.getSlotOwner(slot);
                 await cluster.restore(key, dump);
-                let order : number[] = [];
+                let order : string[] = [];
 
                 console.time("MigrateZset")
-                let promise = cluster.migrateSlot(slot,destination).then(()=> (console.timeEnd("MigrateZset"),order.push(-1)));
+                order.push("MigrationInitiated")
+                let promise = cluster.migrateSlot(slot,destination).then(()=> (console.timeEnd("MigrateZset"),order.push("MigrationFinished")));
 
                 // Should be able to read range from slot
                 let range = await cluster.zrange(key, 0, 2);
                 expect(range).toBeInstanceOf(Array);
                 expect(range).toHaveLength(3);
+                order.push("ReadRange");
                 console.log("Read range")
 
                 // Migration should complete successfully
-                order.push(1);
                 await promise;
                 expect(await destination.isSlotOwner(slot)).toBe(true);
                 expect(await source.isSlotOwner(slot)).toBe(false);
                 expect(await destination.getKeysInSlot(slot)).toEqual([key]);
                 expect(await source.getKeysInSlot(slot)).toEqual([]);
-                expect(order).toEqual([1,-1]);
+                expect(order).toEqual(["MigrationInitiated", "ReadRange", "MigrationFinished"]);
 
 
 
