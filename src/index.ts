@@ -42,7 +42,6 @@ let run = async () => {
 
     // Read file orderedsetDump file
     let buffer = await readFile("./orderedsetDump");
-    buffer = buffer.slice(0, buffer.length -1) // Remove linebreak
 
     // Restore the key and data
     await cluster.restore(key, buffer).then(()=> console.log(`Restored OK`))
@@ -70,6 +69,7 @@ let run = async () => {
     })
 
     console.log(`Proceding to queries and inserts...`)
+
 
     let firstQueryResult : any = await cluster.zrange(key,0,3).catch((err)=>{
         console.log(`Error query1:`)

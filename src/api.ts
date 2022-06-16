@@ -25,6 +25,10 @@ export class RedisCluster {
         return result as any as string
     }
 
+    async hasFailed(){
+        return (await this.clusterNodesRaw()).includes("fail");
+    }
+
     getNode(host: string, port: number){
         if (!this.nodeCache[`${host}:${port}`]) {
             this.nodeCache[`${host}:${port}`] = new RedisNode(host, port);
