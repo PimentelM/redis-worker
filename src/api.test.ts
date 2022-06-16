@@ -1,11 +1,11 @@
 import {promisify} from 'util';
-import {exec as _exec} from 'child_process';
 import {RedisCluster, RedisNode} from "./api";
 import calculateSlot from "cluster-key-slot";
 import {randomBytes} from 'crypto';
 import {hashKeyFromSlot} from "./const";
 import {result} from "lodash";
 
+import {exec as _exec} from 'child_process';
 const exec = promisify(_exec);
 
 

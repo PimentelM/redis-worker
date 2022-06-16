@@ -4,11 +4,13 @@ import {hashKeyFromSlot} from "./const";
 import * as Buffer from "buffer";
 import _ from "lodash";
 import calculateSlot from "cluster-key-slot";
+import {randomBytes} from "crypto";
 
 
 export class RedisCluster {
     private ioredis : Cluster;
     private node : RedisNode;
+    private nodeCache : {[key: string]:RedisNode} = {};
 
     constructor(private host : {host: string, port: number},) {
         this.ioredis = new Cluster([this.host]);
@@ -16,12 +18,23 @@ export class RedisCluster {
     }
 
     async listMasterNodes() : Promise<RedisNode[]>{
-        let raw =  await this.node.command('cluster', 'nodes');
 
-        return raw.split("\n").filter(x => x.includes("master") && (/^.*\d$/).test(x)).map(x => x.split(" ")[1].split("@")[0].split(":")).map(x => new RedisNode(x[0], parseInt(x[1])));
+        const getNode = (host: string, port: number) => {
+            if(!this.nodeCache[`${host}:${port}`]){
+                this.nodeCache[`${host}:${port}`] = new RedisNode(host, port);
+            }
+            return this.nodeCache[`${host}:${port}`];
+        }
+
+        let raw = await new Promise((resolve, reject) => this.ioredis.cluster("NODES").then(resolve).catch(reject))
+        let nodes = (raw as string).split("\n").filter(x => x.includes("master") && (/^.*\d$/).test(x)).map(x => x.split(" ")[1].split("@")[0].split(":")).map(x => getNode(x[0], parseInt(x[1])));
+
+        return nodes;
     }
 
-    async listSlotsBySize(){}
+    async restore(key,serializedData:string | Buffer){
+        return new Promise((resolve, reject) => this.ioredis.restore(key,0,serializedData).then(resolve).catch(reject))
+    }
 
     async getKeysInSlot(slot: number): Promise<string[]>{
         let owner = await this.getSlotOwner(slot);
@@ -45,6 +58,12 @@ export class RedisCluster {
         return new Promise((resolve, reject) => this.ioredis.zadd(key, score, value, ...args).then(resolve).catch(reject));
     }
 
+    async zrange(key:string, min:number, max: number, withscores? : "WITHSCORES" ){
+        if(withscores)
+            return new Promise((resolve, reject) => this.ioredis.zrange(key,min,max,"WITHSCORES").then(resolve).catch(reject));
+        return new Promise((resolve, reject) => this.ioredis.zrange(key,min,max).then(resolve).catch(reject));
+    }
+
     async sadd(key: string, value: string, ...args: (string|number)[]) {
         return new Promise((resolve, reject) => this.ioredis.sadd(key, value, ...args).then(resolve).catch(reject));
     }
@@ -63,7 +82,8 @@ export class RedisCluster {
     }
 
     async getSlotOwner(slot:number): Promise<RedisNode>{
-       for(let node of await this.listMasterNodes()){
+        let nodesList = await this.listMasterNodes()
+       for(let node of nodesList){
            if(await node.isSlotOwner(slot)){
                return node;
            }
@@ -155,7 +175,7 @@ export class RedisNode {
     }
 
     async isSlotOwner(slot: number): Promise<boolean>{
-        return await this.tedis.get(`this_key_should_never_exist{${hashKeyFromSlot(slot)}}${Math.random()}`).then(x => true)
+        return await this.tedis.get(`this_key_should_never_exist{${hashKeyFromSlot(slot)}}${randomBytes(8).toString('hex')}`).then(x => true)
             .catch(err => {
                 if(err.toString().includes("MOVED")){
                     return false;
