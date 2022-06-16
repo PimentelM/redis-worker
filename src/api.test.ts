@@ -3,11 +3,13 @@ import {RedisCluster, RedisNode} from "./api";
 import calculateSlot from "cluster-key-slot";
 import {randomBytes} from 'crypto';
 import {hashKeyFromSlot} from "./const";
-import {result} from "lodash";
+import _, {result} from "lodash";
 
 import {exec as _exec} from 'child_process';
 const exec = promisify(_exec);
 
+import {readFile as _readFile} from 'fs';
+const readFile = promisify(_readFile);
 
 const host = "127.0.0.1";
 const port = 50001;
@@ -31,6 +33,10 @@ describe("Redis handmade API", () => {
        // await cluster.flushdb();
     });
 
+    // afterEach(async () => {
+    //   console.log((await cluster.listMasterNodes()).map(x=>x.port).join(","));
+    // })
+
     describe("RedisCluster", () => {
 
         it("Can get list of Master Nodes", async () => {
@@ -49,6 +55,29 @@ describe("Redis handmade API", () => {
 
             expect(owner.port).toBe(expectedOwnerPort);
         })
+
+        it("Can dump value", async () => {
+            let key = "dumpKey";
+            let value = "dumpValue";
+            await cluster.set(key, value);
+
+            let dump = await cluster.dump(key);
+
+            expect(dump).toBeDefined();
+        })
+
+        it("Can restore value", async () => {
+            let key = "restoreKey";
+            let dump = Buffer.from("000964756d7056616c75650a0082aa58764e454928", "hex");
+
+            await cluster.restore(key, dump);
+
+            let restoredValue = await cluster.get(key);
+            expect(restoredValue).toBe("dumpValue");
+            expect(await cluster.clusterNodesRaw()).not.toContain("fail")
+        })
+
+
 
         it("Can get list of keys at slot", async () => {
             let slot = 15495;
@@ -136,33 +165,58 @@ describe("Redis handmade API", () => {
 
             }, 24000)
 
-            it.skip.each([5, 10/*, 20, 40*/])("Can migrate hash key with %i000 small entries", async (n) => {
-                let slot = 13000 + n;
-                n *= 1000;
+
+            it.skip("Can read key from slot while it is being migrated", async () => {
+                let slot = 12121;
                 let key = hashKeyFromSlot(slot);
-                let source = await cluster.getSlotOwner(slot);
+                let dump = await readFile(`./orderedSetdump`);
                 let destination = await cluster.getSlotOwner(0);
-                console.time("PopulateData")
-                for (let i = 0; i < n; i++)
-                    await cluster.hset(key, "field" + i.toString(), "value" + i.toString());
-                console.timeEnd("PopulateData")
+                await cluster.restore(slot, dump);
 
-                expect(await cluster.memoryUsage(key)).toBeGreaterThan(50)
-                expect(await cluster.hgetall(key)).toBeDefined()
+                let masters = _.sortBy(await cluster.listMasterNodes(),x=>x.port);
 
-                console.time("MigrateData")
-                await cluster.migrateSlot(slot, destination);
-                console.timeEnd("MigrateData")
+                let hashes = await Promise.all(masters.map(async (master) => {
+                    return await master.getHash();
+                }))
 
-                expect(await source.isSlotOwner(slot)).toBe(false);
-                expect(await destination.isSlotOwner(slot)).toBe(true);
-                expect(await destination.getKeysInSlot(slot)).toEqual([key]);
-                expect(await source.getKeysInSlot(slot)).toEqual([]);
-            },12000)
+                let keys = [99, 6765, 16383].map(x=>`unixistentkeys{${hashKeyFromSlot(x)}}`)
 
-            it.skip("Can read key from node while it is being migrated", async () => {
+                let slotmap = await new Promise((resolve, reject) => cluster[`ioredis`].cluster("SLOTS").then(resolve).catch(reject));
 
-            })
+                let clusterNodes = await new Promise((resolve, reject) => cluster[`ioredis`].cluster("NODES").then(resolve).catch(reject));
+
+                let result1 = await masters.shift()!.command("GET",keys.shift() as string).catch(err=>{
+                    console.log(err);
+                    return err;
+                })
+                let result2 = await masters.shift()!.command("GET",keys.shift() as string).catch(err=>{
+                    console.log(err);
+                    return err;
+                })
+                let result3 = await masters.shift()!.command("GET",keys.shift() as string).catch(err=>{
+                    console.log(err);
+                    return err;
+                })
+
+
+
+
+
+
+
+
+                let promise = cluster.migrateSlot(slot,destination).then(()=>{
+                    return true;
+                })
+
+                // Should be able to read range from slot
+                let range = await cluster.zrange(key, 0, 3);
+                expect(range).toHaveLength(3);
+                expect(range).toEqual(["a", "b", "c"]);
+                expect(promiseState(promise)).toBe("pending");
+            }, 900000)
+
+
         })
 
         it.skip("Can flushdb", async () => {
@@ -255,4 +309,10 @@ function generateRandomHexString() {
 
 async function sleep(number: number) {
     return new Promise(resolve => setTimeout(resolve, number));
+}
+
+function promiseState(p) {
+    const t = {};
+    return Promise.race([p, t])
+        .then(v => (v === t)? "pending" : "fulfilled", () => "rejected");
 }
