@@ -91,6 +91,19 @@ describe("Redis handmade API", () => {
         },20000)
 
 
+        it("Can set and get ordered set", async () => {
+            let slot = 909;
+            let key = `orderedSetKey${generateRandomHexString(16)}`;
+
+            await cluster.zadd(key, 2,"value3");
+            await cluster.zadd(key, 0,"value1");
+            await cluster.zadd(key, 1,"value2");
+
+            let values = await cluster.zrange(key,0,2);
+            expect(values).toHaveLength(3);
+            expect(values).toMatchObject(["value1","value2","value3"]);
+        })
+
 
         it("Can get list of keys at slot", async () => {
             let slot = 15495;
@@ -179,55 +192,36 @@ describe("Redis handmade API", () => {
             }, 24000)
 
 
-            it.skip("Can read key from slot while it is being migrated", async () => {
+            it("Can migrate large slot with ordered set", async () => {
                 let slot = 12121;
                 let key = hashKeyFromSlot(slot);
                 let dump = await readFile(`./orderedSetdump`);
                 let destination = await cluster.getSlotOwner(0);
-                await cluster.restore(slot, dump);
+                let source = await cluster.getSlotOwner(slot);
+                await cluster.restore(key, dump);
+                let order : number[] = [];
 
-                let masters = _.sortBy(await cluster.listMasterNodes(),x=>x.port);
-
-                let hashes = await Promise.all(masters.map(async (master) => {
-                    return await master.getHash();
-                }))
-
-                let keys = [99, 6765, 16383].map(x=>`unixistentkeys{${hashKeyFromSlot(x)}}`)
-
-                let slotmap = await new Promise((resolve, reject) => cluster[`ioredis`].cluster("SLOTS").then(resolve).catch(reject));
-
-                let clusterNodes = await new Promise((resolve, reject) => cluster[`ioredis`].cluster("NODES").then(resolve).catch(reject));
-
-                let result1 = await masters.shift()!.command("GET",keys.shift() as string).catch(err=>{
-                    console.log(err);
-                    return err;
-                })
-                let result2 = await masters.shift()!.command("GET",keys.shift() as string).catch(err=>{
-                    console.log(err);
-                    return err;
-                })
-                let result3 = await masters.shift()!.command("GET",keys.shift() as string).catch(err=>{
-                    console.log(err);
-                    return err;
-                })
-
-
-
-
-
-
-
-
-                let promise = cluster.migrateSlot(slot,destination).then(()=>{
-                    return true;
-                })
+                console.time("MigrateZset")
+                let promise = cluster.migrateSlot(slot,destination).then(()=> (console.timeEnd("MigrateZset"),order.push(-1)));
 
                 // Should be able to read range from slot
-                let range = await cluster.zrange(key, 0, 3);
+                let range = await cluster.zrange(key, 0, 2);
+                expect(range).toBeInstanceOf(Array);
                 expect(range).toHaveLength(3);
-                expect(range).toEqual(["a", "b", "c"]);
-                expect(promiseState(promise)).toBe("pending");
-            }, 900000)
+                console.log("Read range")
+
+                // Migration should complete successfully
+                order.push(1);
+                await promise;
+                expect(await destination.isSlotOwner(slot)).toBe(true);
+                expect(await source.isSlotOwner(slot)).toBe(false);
+                expect(await destination.getKeysInSlot(slot)).toEqual([key]);
+                expect(await source.getKeysInSlot(slot)).toEqual([]);
+                expect(order).toEqual([1,-1]);
+
+
+
+            }, 90000)
 
 
         })

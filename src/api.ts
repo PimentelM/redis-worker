@@ -109,8 +109,7 @@ export class RedisCluster {
     }
 
     async migrateSlot(slot: number, destination: RedisNode, timeout = 2000) {
-        let error;
-
+        console.log("Migrating slot", slot, "to", destination.host, destination.port);
         // Get all keys from slot
         let keys = await this.getKeysInSlot(slot);
 
@@ -121,27 +120,20 @@ export class RedisCluster {
         let sourceHash = await source.getHash();
         let destinationHash = await destination.getHash();
 
-        try {
-            // Set destinationNode state as IMPORTING
-            await destination.command(...`cluster setslot ${slot} importing ${sourceHash}`.split(" "))
 
-            // Set sourceNode state as MIGRATING
-            await source.command(...`cluster setslot ${slot} migrating ${destinationHash}`.split(" "))
+        // Set destinationNode state as IMPORTING
+        await destination.command(...`cluster setslot ${slot} importing ${sourceHash}`.split(" "))
 
-            // Perform migration
+        // Set sourceNode state as MIGRATING
+        await source.command(...`cluster setslot ${slot} migrating ${destinationHash}`.split(" "))
 
-            await source.command('migrate', destination.host, destination.port, '', 0, timeout, "keys", ...keys);
-        } catch (e) {
-            console.log(e);
-            error = e;
-        } finally {
-            // Restore nodes to original state
-            await source.command(...`cluster setslot ${slot} node ${destinationHash}`.split(" "))
-            await destination.command(...`cluster setslot ${slot} node ${destinationHash}`.split(" "))
-            this.ioredis = new Cluster(this._hostInfo);
-        }
+        // Perform migration
 
-        if(error) throw error;
+        await source.command('migrate', destination.host, destination.port, '', 0, timeout, "keys", ...keys);
+
+        // Restore nodes to original state
+        await source.command(...`cluster setslot ${slot} node ${destinationHash}`.split(" "))
+        await destination.command(...`cluster setslot ${slot} node ${destinationHash}`.split(" "))
     }
 
     async flushdb() {
