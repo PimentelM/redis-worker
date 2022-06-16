@@ -210,6 +210,7 @@ describe("Redis handmade API", () => {
                 let range = await cluster.zrange(key, 0, 2);
                 expect(range).toBeInstanceOf(Array);
                 expect(range).toHaveLength(3);
+                await sleep(0);
                 order.push("ReadRange");
                 console.log("Read range")
 
