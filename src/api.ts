@@ -21,7 +21,8 @@ export class RedisCluster {
     }
 
     async clusterNodesRaw(){
-        return new Promise((resolve, reject) => this.ioredis.cluster("NODES").then(resolve).catch(reject));
+        let result = await new Promise((resolve, reject) => this.ioredis.cluster("NODES").then(resolve).catch(reject));
+        return result as any as string
     }
 
     getNode(host: string, port: number){

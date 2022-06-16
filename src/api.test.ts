@@ -77,6 +77,19 @@ describe("Redis handmade API", () => {
             expect(await cluster.clusterNodesRaw()).not.toContain("fail")
         })
 
+        it("Can restore really big dump", async () => {
+            let key = `restoreKey${generateRandomHexString(16)}`;
+            let dump = await readFile("./orderedSetDump")
+
+            await cluster.restore(key, dump);
+
+            let restoredValue = await cluster.zrange(key,0,2);
+            expect(restoredValue).toHaveLength(3);
+            let clusterNodesRaw = await cluster.clusterNodesRaw();
+            expect(clusterNodesRaw.includes("fail")).toBeFalsy();
+
+        },20000)
+
 
 
         it("Can get list of keys at slot", async () => {
@@ -303,8 +316,8 @@ function byPortNumber(a: RedisNode, b: RedisNode) {
     return a.port - b.port;
 }
 
-function generateRandomHexString() {
-    return Math.floor(Math.random() * 200000000).toString(16);
+function generateRandomHexString(size) {
+    return randomBytes(size).toString("hex");
 }
 
 async function sleep(number: number) {
