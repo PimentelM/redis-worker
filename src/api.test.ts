@@ -24,7 +24,6 @@ describe("Redis handmade API", () => {
     afterAll(async () => {
         // Stop redis server
         console.log(await stopRedis());
-        await process.exit(0);
     })
 
     let cluster: RedisCluster;
@@ -34,9 +33,9 @@ describe("Redis handmade API", () => {
        // await cluster.flushdb();
     });
 
-    // afterEach(async () => {
-    //   console.log((await cluster.listMasterNodes()).map(x=>x.port).join(","));
-    // })
+    afterEach(async () => {
+        expect({hasFailed: await cluster.hasFailed()}).toMatchObject({hasFailed: false});
+    })
 
     describe("RedisCluster", () => {
 
@@ -62,7 +61,7 @@ describe("Redis handmade API", () => {
             let value = "dumpValue";
             await cluster.set(key, value);
 
-            let dump = await cluster.dump(key);
+            let dump : Buffer = await cluster.dump(key);
 
             expect(dump).toBeDefined();
         })
@@ -181,9 +180,9 @@ describe("Redis handmade API", () => {
                 await cluster.set(key, data);
                 console.timeEnd("PopulateData")
 
-                console.time("MigrateData")
+                console.time(`MigrateData ${MB}MB`)
                 await cluster.migrateSlot(slot, destination);
-                console.timeEnd("MigrateData")
+                console.timeEnd(`MigrateData ${MB}MB`)
 
                 expect(await source.isSlotOwner(slot)).toBe(false);
                 expect(await destination.isSlotOwner(slot)).toBe(true);
@@ -193,7 +192,7 @@ describe("Redis handmade API", () => {
             }, 24000)
 
 
-            it("Can migrate large slot with ordered set while receiving reads", async () => {
+            it("Can migrate large slot with ordered set while receiving reads and writes", async () => {
                 let slot = 12121;
                 let key = hashKeyFromSlot(slot);
                 let dump = await readFile(`./orderedSetdump`);
@@ -214,16 +213,26 @@ describe("Redis handmade API", () => {
                 order.push("ReadRange");
                 console.log("Read range")
 
+                // Write to slot
+                await cluster.zadd(key, 0,"New value");
+                let r1 = await cluster.zrange(key, 0, 2);
+                await sleep(0);
+                order.push("AddItem");
+                console.log("Added to sorted set")
+
                 const infiniteReads = async ()=> {while(true) await cluster.zrange(key, 0, 2)};
                 // Migration should complete successfully
                 await Promise.race([promise,infiniteReads()]);
+                let r2 = await cluster.zrange(key, 0, 2);
                 expect(await destination.isSlotOwner(slot)).toBe(true);
                 expect(await source.isSlotOwner(slot)).toBe(false);
                 expect(await destination.getKeysInSlot(slot)).toEqual([key]);
                 expect(await source.getKeysInSlot(slot)).toEqual([]);
-                expect(order).toEqual(["MigrationInitiated", "ReadRange","MigrationFinished"]);
-                expect(await cluster.hasFailed()).toBe(false);
-
+                expect(r1).toContain(`New value`);
+                expect(r1).toEqual(r2);
+                let res = await cluster.clusterNodesRaw();
+                console.log(res);
+                expect(order).toEqual(["MigrationInitiated", "ReadRange","AddItem", "MigrationFinished"]);
             }, 13000)
 
 
@@ -247,6 +256,8 @@ describe("Redis handmade API", () => {
     })
 
     describe("RedisNode", () => {
+
+        console.log(`Starting RedisNode tests`);
 
 
         it("Can get node hash // id", async () => {
