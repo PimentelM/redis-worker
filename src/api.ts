@@ -84,6 +84,10 @@ export class RedisCluster {
         return new Promise((resolve, reject) => this.ioredis.zrange(key, min, max).then(resolve).catch(reject));
     }
 
+    async zscore(key: string, member: string) {
+        return new Promise((resolve, reject) => this.ioredis.zscore(key, member).then(resolve).catch(reject));
+    }
+
     async sadd(key: string, value: string, ...args: (string | number)[]) {
         return new Promise((resolve, reject) => this.ioredis.sadd(key, value, ...args).then(resolve).catch(reject));
     }
