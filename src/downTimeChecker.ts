@@ -44,12 +44,12 @@ class Events{
     public entries : string[] = [];
 
     public push(event: string){
-        this.entries.push(`${new Date().getTime()}: ${event}`);
+        this.entries.push(`${new Date().toISOString()}: ${event}`);
         console.log(event)
     }
 }
 
-class DownTimeCheckerWorker {
+export class DownTimeCheckerWorker {
     private status: string = 'ready'
     private stopCallBacks : Function[] = [];
 
@@ -100,10 +100,11 @@ class DownTimeCheckerWorker {
         }, this.intervalBetweenCycles);
 
         this.durationTimeoutIdentifier = setTimeout(()=>{
+            this.events.push(`DURATION_TIMEOUT`);
             this.stop();
         }, this.duration);
 
-
+        this.events.push(`STARTED`);
         this.status = 'running';
     }
 
@@ -122,6 +123,9 @@ class DownTimeCheckerWorker {
         let report = this.makeReport();
 
         this.stopTime = new Date();
+
+        this.events.push(`STOPPED`);
+
         this.status = 'stopped';
         this.stopCallBacks.forEach(cb => cb(report));
     }
@@ -130,7 +134,7 @@ class DownTimeCheckerWorker {
         let key = this.keyPrefix + ':cycle:' + this.cycleCount;
         let currentCycle = this.cycleCount;
 
-        this.events.push(`Starting cycle ${currentCycle}`);
+        this.events.push(`[${currentCycle}] CYCLE STARTED`);
 
         // Write to zset, set timeout to check existence of element in zset
         let p1 = this.cluster.zadd(this.targets.zset!, currentCycle, key).then(()=>{
@@ -185,7 +189,7 @@ class DownTimeCheckerWorker {
         })
 
         Promise.all([p1, p2, p3]).then(()=>{
-            this.events.push(`Finished cycle ${currentCycle}`);
+            this.events.push(`[${currentCycle}] CYCLE FINISHED`);
         })
 
         this.cycleCount++;
