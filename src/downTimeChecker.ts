@@ -14,6 +14,7 @@ class Report {
         public hashMisses: number[],
         public nOfCycles: number,
         public cycleInterval: number,
+        public events: string[],
     ) { }
 
     get percentageOfZSetMisses(): number {
@@ -39,6 +40,15 @@ class Report {
 
 }
 
+class Events{
+    public entries : string[] = [];
+
+    public push(event: string){
+        this.entries.push(`${new Date().getTime()}: ${event}`);
+        console.log(event)
+    }
+}
+
 class DownTimeCheckerWorker {
     private status: string = 'ready'
     private stopCallBacks : Function[] = [];
@@ -54,6 +64,8 @@ class DownTimeCheckerWorker {
 
     private startTime?: Date;
     private stopTime?: Date;
+
+    private events: Events = new Events();
 
     constructor(
         private cluster: RedisCluster,
@@ -121,24 +133,34 @@ class DownTimeCheckerWorker {
         // Write to zset, set timeout to check existence of element in zset
         this.cluster.zadd(this.targets.zset!, currentCycle, key).then(()=>{
             setTimeout(async ()=>{
-                let result = await this.cluster.zscore(this.targets.zset!,key).catch(()=>-1)
+                let result = await this.cluster.zscore(this.targets.zset!,key).catch((err)=>{
+                    this.events.push(`Failed to read ${key} from zset ${this.targets.zset} \nERR: ${err.message}`)
+                    return `ERROR`
+                })
                 if(result != currentCycle){
+                    this.events.push(`Query to ${key} of zset ${this.targets.zset} returned ${result} instead of ${currentCycle}`);
                     this.zsetMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
         }).catch(err=>{
+            this.events.push(`Failed to add element ${this.cycleCount} to zset ${this.targets.zset}\n ERR:${err.message}`);
             this.zsetMiss.push(currentCycle);
         })
 
         // Write to hash, set timeout to check existence of element in hash
         this.cluster.hset(this.targets.hash!, key, currentCycle).then(()=>{
             setTimeout(async ()=>{
-                let result = await this.cluster.hget(this.targets.zset!,key).catch(()=>-1)
+                let result = await this.cluster.hget(this.targets.zset!,key).catch(err=>{
+                    this.events.push(`Failed to read ${key} from hash ${this.targets.hash} \nERR: ${err.message}`)
+                    return `ERROR`
+                })
                 if(result != currentCycle){
+                    this.events.push(`Query to ${key} of hash ${this.targets.hash} returned ${result} instead of ${currentCycle}`);
                     this.hashMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
         }).catch(err=>{
+            this.events.push(`Failed to set field ${key} with value ${this.cycleCount} at hash ${this.targets.hash}\n ERR:${err.message}`);
             this.hashMiss.push(currentCycle);
         })
 
@@ -146,12 +168,17 @@ class DownTimeCheckerWorker {
         // Create new Key, set timeout to check existence of key
         this.cluster.set(key, currentCycle).then(()=>{
             setTimeout(async ()=>{
-                let result = await this.cluster.get(key).catch(()=>-1)
+                let result = await this.cluster.get(key).catch(err=>{
+                    this.events.push(`Failed to read ${key} \nERR: ${err.message}`)
+                    return `ERROR`
+                })
                 if(result != currentCycle){
+                    this.events.push(`Query to ${key} returned ${result} instead of ${currentCycle}`);
                     this.keyMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
         }).catch(err=>{
+            this.events.push(`Failed to set key ${key} with value ${this.cycleCount}\n ERR:${err.message}`);
             this.keyMiss.push(currentCycle);
         })
 
@@ -167,6 +194,7 @@ class DownTimeCheckerWorker {
             this.hashMiss,
             this.cycleCount,
             this.intervalBetweenCycles,
+            this.events.entries
         )
     }
 
