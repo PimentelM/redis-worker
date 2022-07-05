@@ -93,6 +93,7 @@ export class DownTimeCheckerWorker {
         this.events.push(`STOPPED`);
 
         await Promise.all(this.allPromises);
+        this.cycleCount--;
 
         // Check that every data that was written is still in place
         await this.checkAllWrites();
@@ -178,27 +179,27 @@ export class DownTimeCheckerWorker {
 
     private async checkAllWrites() {
         for (let cycle = 0; cycle <= this.cycleCount; cycle++) {
-            this.events.push(`[${cycle} of ${this.cycleCount}] CHECKING CYCLE INPUTS`);
+            this.events.push(`[${cycle} - ${this.cycleCount}] CHECKING CYCLE INPUTS`);
             let exists;
             // Check that key exists
             let key = this.keyPrefix + ':cycle:' + cycle;
-            exists = await this.cluster.get(key).catch(err => false).then(result => Number(result) === cycle)
+            exists = await this.cluster.get(key).catch(err => null).then(result => Number(result) === cycle)
             if (!exists) {
                 this.events.push(`[${cycle}] KEY MISSING`);
                 this.keyMissingAfter.push(cycle);
             }
 
             // Check that element exists in zset
-            exists = await this.cluster.zscore(this.targets.zset!, key).catch(err => false).then(result => Number(result) === cycle)
+            exists = await this.cluster.zscore(this.targets.zset!, key).catch(err => null).then(result => Number(result) === cycle)
             if(!exists){
-                this.events.push(`[${cycle}] ZSET MISSING`);
+                this.events.push(`[${cycle}] ZSET MISSING AT ${this.targets.zset}`);
                 this.zsetMissingAfter.push(cycle);
             }
 
             // Check that element exists in hash
-            exists = await this.cluster.hget(this.targets.hash!, key).catch(err => false).then(result => Number(result) === cycle)
+            exists = await this.cluster.hget(this.targets.hash!, key).catch(err => null).then(result => Number(result) === cycle)
             if(!exists){
-                this.events.push(`[${cycle}] HASH MISSING`);
+                this.events.push(`[${cycle}] HASH MISSING AT ${this.targets.hash}`);
                 this.hashMissingAfter.push(cycle);
             }
         }
