@@ -5,7 +5,37 @@ interface KeyTargets {
     hash?: string;
 }
 
-interface Report {
+class Report {
+    constructor(
+        public startTime: Date,
+        public stopTime: Date,
+        public keyMisses: number[],
+        public zsetMisses: number[],
+        public hashMisses: number[],
+        public nOfCycles: number,
+        public cycleInterval: number,
+    ) { }
+
+    get percentageOfZSetMisses(): number {
+        return this.zsetMisses.length / this.nOfCycles;
+    }
+
+    get percentageOfHashMisses(): number {
+        return this.hashMisses.length / this.nOfCycles;
+    }
+
+    get percentageOfKeyMisses(): number {
+        return this.keyMisses.length / this.nOfCycles;
+    }
+
+    get percentageOfMisses(): number {
+            return (this.percentageOfHashMisses + this.percentageOfZSetMisses + this.percentageOfKeyMisses) / 3
+    }
+
+    public timestampOfCycle(cycle: number): number {
+        return this.startTime.getTime() + (cycle * this.cycleInterval);
+    }
+
 
 }
 
@@ -21,6 +51,9 @@ class DownTimeCheckerWorker {
     private hashMiss : number[]= [];
 
     private cycleCount = 0;
+
+    private startTime?: Date;
+    private stopTime?: Date;
 
     constructor(
         private cluster: RedisCluster,
@@ -49,8 +82,7 @@ class DownTimeCheckerWorker {
         if(this.status !== 'ready'){
             throw new Error('Worker is in an invalid state')
         }
-
-
+        this.startTime = new Date();
         this.cycleIntervalIdentifier = setInterval(async()=>{
             await this.executeCycle()
         }, this.intervalBetweenCycles);
@@ -77,7 +109,7 @@ class DownTimeCheckerWorker {
         // Create report
         let report = this.makeReport();
 
-
+        this.stopTime = new Date();
         this.status = 'stopped';
         this.stopCallBacks.forEach(cb => cb(report));
     }
@@ -121,12 +153,19 @@ class DownTimeCheckerWorker {
     }
 
     public makeReport() : Report {
-
-        return {};
+        return new Report(
+            this.startTime!,
+            this.stopTime!,
+            this.keyMiss,
+            this.zsetMiss,
+            this.hashMiss,
+            this.cycleCount,
+            this.intervalBetweenCycles,
+        )
     }
 
 
-    public onStop(callback: Function){
+    public onStop(callback: (report: Report) => void){
         this.stopCallBacks.push(callback);
     }
 
