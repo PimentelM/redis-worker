@@ -152,7 +152,7 @@ class DownTimeCheckerWorker {
         // Write to hash, set timeout to check existence of element in hash
         let p2= this.cluster.hset(this.targets.hash!, key, currentCycle).then(()=>{
             setTimeout(async ()=>{
-                let result = await this.cluster.hget(this.targets.zset!,key).catch(err=>{
+                let result = await this.cluster.hget(this.targets.hash!,key).catch(err=>{
                     this.events.push(`[${currentCycle}][HASH] Failed to read ${key} from hash ${this.targets.hash} \nERR: ${err.message}`)
                     return `ERROR`
                 })
