@@ -121,32 +121,38 @@ class DownTimeCheckerWorker {
         // Write to zset, set timeout to check existence of element in zset
         this.cluster.zadd(this.targets.zset!, currentCycle, key).then(()=>{
             setTimeout(async ()=>{
-                let result = await this.cluster.zscore(this.targets.zset!,key)
+                let result = await this.cluster.zscore(this.targets.zset!,key).catch(()=>-1)
                 if(result != currentCycle){
                     this.zsetMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
+        }).catch(err=>{
+            this.zsetMiss.push(currentCycle);
         })
 
         // Write to hash, set timeout to check existence of element in hash
         this.cluster.hset(this.targets.hash!, key, currentCycle).then(()=>{
             setTimeout(async ()=>{
-                let result = await this.cluster.hget(this.targets.zset!,key)
+                let result = await this.cluster.hget(this.targets.zset!,key).catch(()=>-1)
                 if(result != currentCycle){
                     this.hashMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
+        }).catch(err=>{
+            this.hashMiss.push(currentCycle);
         })
 
 
         // Create new Key, set timeout to check existence of key
         this.cluster.set(key, currentCycle).then(()=>{
             setTimeout(async ()=>{
-                let result = await this.cluster.get(key)
+                let result = await this.cluster.get(key).catch(()=>-1)
                 if(result != currentCycle){
                     this.keyMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
+        }).catch(err=>{
+            this.keyMiss.push(currentCycle);
         })
 
         this.cycleCount++;
