@@ -40,7 +40,9 @@ describe("Redis handmade API", () => {
     })
 
     afterAll(async () => {
-        downTimeChecker.stop();
+        let report = await downTimeChecker.stop();
+        expect(report.percentageOfMisses).toBe(0);
+
         // Stop redis server
         console.log(await stopRedis());
     })

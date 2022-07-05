@@ -66,6 +66,7 @@ export class DownTimeCheckerWorker {
     private stopTime?: Date;
 
     private events: Events = new Events();
+    private allPromises: Promise<any>[] = [];
 
     constructor(
         private cluster: RedisCluster,
@@ -108,7 +109,7 @@ export class DownTimeCheckerWorker {
         this.status = 'running';
     }
 
-    public stop(){
+    public async stop(){
         if(this.status !== 'running'){
             throw new Error('Worker is not running')
         }
@@ -119,15 +120,20 @@ export class DownTimeCheckerWorker {
         // Stop duration timeout
         clearTimeout(this.durationTimeoutIdentifier);
 
+        this.stopTime = new Date();
+        this.status = 'stopped';
+        this.events.push(`STOPPED`);
+
+        await Promise.all(this.allPromises);
+
         // Create report
         let report = this.makeReport();
 
-        this.stopTime = new Date();
-
-        this.events.push(`STOPPED`);
-
-        this.status = 'stopped';
+        this.events.push(`DONE`);
+        this.status = 'done';
         this.stopCallBacks.forEach(cb => cb(report));
+
+        return report;
     }
 
     private async executeCycle(){
@@ -188,9 +194,11 @@ export class DownTimeCheckerWorker {
             this.keyMiss.push(currentCycle);
         })
 
-        Promise.all([p1, p2, p3]).then(()=>{
+        let cyclePromise = Promise.all([p1, p2, p3]).then(()=>{
             this.events.push(`[${currentCycle}] CYCLE FINISHED`);
         })
+
+        this.allPromises.push(cyclePromise);
 
         this.cycleCount++;
     }
