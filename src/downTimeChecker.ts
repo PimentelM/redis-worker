@@ -5,41 +5,6 @@ interface KeyTargets {
     hash?: string;
 }
 
-class Report {
-    constructor(
-        public startTime: Date,
-        public stopTime: Date,
-        public keyMisses: number[],
-        public zsetMisses: number[],
-        public hashMisses: number[],
-        public nOfCycles: number,
-        public cycleInterval: number,
-        public events: string[],
-    ) { }
-
-    get percentageOfZSetMisses(): number {
-        return this.zsetMisses.length / this.nOfCycles;
-    }
-
-    get percentageOfHashMisses(): number {
-        return this.hashMisses.length / this.nOfCycles;
-    }
-
-    get percentageOfKeyMisses(): number {
-        return this.keyMisses.length / this.nOfCycles;
-    }
-
-    get percentageOfMisses(): number {
-            return (this.percentageOfHashMisses + this.percentageOfZSetMisses + this.percentageOfKeyMisses) / 3
-    }
-
-    public timestampOfCycle(cycle: number): number {
-        return this.startTime.getTime() + (cycle * this.cycleInterval);
-    }
-
-
-}
-
 class Events{
     public entries : string[] = [];
 
@@ -51,21 +16,25 @@ class Events{
 
 export class DownTimeCheckerWorker {
     private status: string = 'ready'
-    private stopCallBacks : Function[] = [];
+    private stopCallBacks: Function[] = [];
 
-    private cycleIntervalIdentifier : any;
+    private cycleIntervalIdentifier: any;
     private durationTimeoutIdentifier: any;
 
-    private zsetMiss : number[] = [];
-    private keyMiss : number[]= [];
-    private hashMiss : number[]= [];
+    private zsetMiss: number[] = [];
+    private keyMiss: number[] = [];
+    private hashMiss: number[] = [];
+
+    private zsetMissingAfter: number[] = [];
+    private keyMissingAfter: number[] = [];
+    private hashMissingAfter: number[] = [];
 
     private cycleCount = 0;
 
     private startTime?: Date;
     private stopTime?: Date;
 
-    private events: Events = new Events();
+    events: Events = new Events();
     private allPromises: Promise<any>[] = [];
 
     constructor(
@@ -73,47 +42,46 @@ export class DownTimeCheckerWorker {
         private targets: KeyTargets,
         private keyPrefix: string,
         private duration: number,
-        private intervalBetweenCycles : number,
+        private intervalBetweenCycles: number,
         private readAfterWriteDelay: number,
     ) {
-        if(!this.targets.zset){
+        if (!this.targets.zset) {
             this.targets.zset = this.keyPrefix + ':zset';
         }
 
-        if(!this.targets.hash){
+        if (!this.targets.hash) {
             this.targets.hash = this.keyPrefix + ':hash';
         }
     }
 
-    public start(){
-        if(this.status === 'running'){
+    public start() {
+        if (this.status === 'running') {
             throw new Error('Worker is already running')
         }
-        if(['done', 'stopped'].includes(this.status)){
+        if (['done', 'stopped'].includes(this.status)) {
             throw new Error('Worker already finished execution')
         }
-        if(this.status !== 'ready'){
+        if (this.status !== 'ready') {
             throw new Error('Worker is in an invalid state')
         }
         this.startTime = new Date();
-        this.cycleIntervalIdentifier = setInterval(async()=>{
+        this.cycleIntervalIdentifier = setInterval(async () => {
             await this.executeCycle()
         }, this.intervalBetweenCycles);
 
-        this.durationTimeoutIdentifier = setTimeout(()=>{
+        this.durationTimeoutIdentifier = setTimeout(async () => {
             this.events.push(`DURATION_TIMEOUT`);
-            this.stop();
+            await this.stop();
         }, this.duration);
 
         this.events.push(`STARTED`);
         this.status = 'running';
     }
 
-    public async stop(){
-        if(this.status !== 'running'){
+    public async stop() {
+        if (this.status !== 'running') {
             throw new Error('Worker is not running')
         }
-
         // Stop Cycles
         clearInterval(this.cycleIntervalIdentifier);
 
@@ -126,75 +94,74 @@ export class DownTimeCheckerWorker {
 
         await Promise.all(this.allPromises);
 
-        // Create report
-        let report = this.makeReport();
+        // Check that every data that was written is still in place
+        await this.checkAllWrites();
+
 
         this.events.push(`DONE`);
         this.status = 'done';
-        this.stopCallBacks.forEach(cb => cb(report));
-
-        return report;
+        this.stopCallBacks.forEach(cb => cb(this));
     }
 
-    private async executeCycle(){
+    private async executeCycle() {
         let key = this.keyPrefix + ':cycle:' + this.cycleCount;
         let currentCycle = this.cycleCount;
 
         this.events.push(`[${currentCycle}] CYCLE STARTED`);
 
         // Write to zset, set timeout to check existence of element in zset
-        let p1 = this.cluster.zadd(this.targets.zset!, currentCycle, key).then(()=>{
-            setTimeout(async ()=>{
-                let result = await this.cluster.zscore(this.targets.zset!,key).catch((err)=>{
+        let p1 = this.cluster.zadd(this.targets.zset!, currentCycle, key).then(() => {
+            setTimeout(async () => {
+                let result = await this.cluster.zscore(this.targets.zset!, key).catch((err) => {
                     this.events.push(`[${currentCycle}][ZSET] Failed to read ${key} from zset ${this.targets.zset} \nERR: ${err.message}`)
                     return `ERROR`
                 })
-                if(result != currentCycle){
+                if (result != currentCycle) {
                     this.events.push(`Query to ${key} of zset ${this.targets.zset} returned ${result} instead of ${currentCycle}`);
                     this.zsetMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
-        }).catch(err=>{
+        }).catch(err => {
             this.events.push(`Failed to add element ${this.cycleCount} to zset ${this.targets.zset}\n ERR:${err.message}`);
             this.zsetMiss.push(currentCycle);
         })
 
         // Write to hash, set timeout to check existence of element in hash
-        let p2= this.cluster.hset(this.targets.hash!, key, currentCycle).then(()=>{
-            setTimeout(async ()=>{
-                let result = await this.cluster.hget(this.targets.hash!,key).catch(err=>{
+        let p2 = this.cluster.hset(this.targets.hash!, key, currentCycle).then(() => {
+            setTimeout(async () => {
+                let result = await this.cluster.hget(this.targets.hash!, key).catch(err => {
                     this.events.push(`[${currentCycle}][HASH] Failed to read ${key} from hash ${this.targets.hash} \nERR: ${err.message}`)
                     return `ERROR`
                 })
-                if(result != currentCycle){
+                if (result != currentCycle) {
                     this.events.push(`Query to ${key} of hash ${this.targets.hash} returned ${result} instead of ${currentCycle}`);
                     this.hashMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
-        }).catch(err=>{
+        }).catch(err => {
             this.events.push(`Failed to set field ${key} with value ${this.cycleCount} at hash ${this.targets.hash}\n ERR:${err.message}`);
             this.hashMiss.push(currentCycle);
         })
 
 
         // Create new Key, set timeout to check existence of key
-        let p3 = this.cluster.set(key, currentCycle).then(()=>{
-            setTimeout(async ()=>{
-                let result = await this.cluster.get(key).catch(err=>{
+        let p3 = this.cluster.set(key, currentCycle).then(() => {
+            setTimeout(async () => {
+                let result = await this.cluster.get(key).catch(err => {
                     this.events.push(`[${currentCycle}][KEY] Failed to read ${key} \nERR: ${err.message}`)
                     return `ERROR`
                 })
-                if(result != currentCycle){
+                if (result != currentCycle) {
                     this.events.push(`Query to ${key} returned ${result} instead of ${currentCycle}`);
                     this.keyMiss.push(currentCycle);
                 }
             }, this.readAfterWriteDelay);
-        }).catch(err=>{
+        }).catch(err => {
             this.events.push(`Failed to set key ${key} with value ${this.cycleCount}\n ERR:${err.message}`);
             this.keyMiss.push(currentCycle);
         })
 
-        let cyclePromise = Promise.all([p1, p2, p3]).then(()=>{
+        let cyclePromise = Promise.all([p1, p2, p3]).then(() => {
             this.events.push(`[${currentCycle}] CYCLE FINISHED`);
         })
 
@@ -203,24 +170,76 @@ export class DownTimeCheckerWorker {
         this.cycleCount++;
     }
 
-    public makeReport() : Report {
-        return new Report(
-            this.startTime!,
-            this.stopTime!,
-            this.keyMiss,
-            this.zsetMiss,
-            this.hashMiss,
-            this.cycleCount,
-            this.intervalBetweenCycles,
-            this.events.entries
-        )
-    }
 
-
-    public onStop(callback: (report: Report) => void){
+    public onStop(callback: (instance: DownTimeCheckerWorker) => void) {
         this.stopCallBacks.push(callback);
     }
 
+
+    private async checkAllWrites() {
+        for (let cycle = 0; cycle <= this.cycleCount; cycle++) {
+            this.events.push(`[${cycle} of ${this.cycleCount}] CHECKING CYCLE INPUTS`);
+            let exists;
+            // Check that key exists
+            let key = this.keyPrefix + ':cycle:' + cycle;
+            exists = await this.cluster.get(key).catch(err => false).then(result => Number(result) === cycle)
+            if (!exists) {
+                this.events.push(`[${cycle}] KEY MISSING`);
+                this.keyMissingAfter.push(cycle);
+            }
+
+            // Check that element exists in zset
+            exists = await this.cluster.zscore(this.targets.zset!, key).catch(err => false).then(result => Number(result) === cycle)
+            if(!exists){
+                this.events.push(`[${cycle}] ZSET MISSING`);
+                this.zsetMissingAfter.push(cycle);
+            }
+
+            // Check that element exists in hash
+            exists = await this.cluster.hget(this.targets.hash!, key).catch(err => false).then(result => Number(result) === cycle)
+            if(!exists){
+                this.events.push(`[${cycle}] HASH MISSING`);
+                this.hashMissingAfter.push(cycle);
+            }
+        }
+    }
+
+    // Report methods
+    get percentageOfZSetMisses(): number {
+        return this.zsetMiss.length / this.cycleCount;
+    }
+
+    get percentageOfHashMisses(): number {
+        return this.hashMiss.length / this.cycleCount;
+    }
+
+    get percentageOfKeyMisses(): number {
+        return this.keyMiss.length / this.cycleCount;
+    }
+
+    get downtime(): number {
+        return (this.percentageOfHashMisses + this.percentageOfZSetMisses + this.percentageOfKeyMisses) / 3
+    }
+
+    get percentageOfKeyMissingAfter(): number {
+        return this.keyMissingAfter.length / this.cycleCount;
+    }
+
+    get percentageOfZSetMissingAfter(): number {
+        return this.zsetMissingAfter.length / this.cycleCount;
+    }
+
+    get percentageOfHashMissingAfter(): number {
+        return this.hashMissingAfter.length / this.cycleCount;
+    }
+
+    get dataLoss(): number {
+        return (this.percentageOfHashMissingAfter + this.percentageOfZSetMissingAfter + this.percentageOfKeyMissingAfter) / 3
+    }
+
+    public timestampOfCycle(cycle: number): number {
+        return this.startTime!.getTime() + (cycle * this.intervalBetweenCycles);
+    }
 
 
 }

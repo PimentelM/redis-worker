@@ -31,17 +31,19 @@ describe("Redis handmade API", () => {
             1
         );
 
-        downTimeChecker.onStop(report=>{
-            console.log(report.events.join("\n"))
-            console.log(`DOWNTIME: ${report.percentageOfMisses * 100}%`)
+        downTimeChecker.onStop(worker=>{
+            console.log(worker.events.entries.join("\n"))
+            console.log(`DOWNTIME: ${worker.downtime * 100}%`)
+            console.log(`DATA LOSS: ${worker.dataLoss * 100}%`)
         });
 
         downTimeChecker.start();
     })
 
     afterAll(async () => {
-        let report = await downTimeChecker.stop();
-        expect(report.percentageOfMisses).toBe(0);
+        await downTimeChecker.stop();
+        expect(downTimeChecker.downtime).toBe(0);
+        expect(downTimeChecker.dataLoss).toBe(0);
 
         // Stop redis server
         console.log(await stopRedis());
