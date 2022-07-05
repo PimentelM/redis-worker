@@ -130,11 +130,13 @@ class DownTimeCheckerWorker {
         let key = this.keyPrefix + ':cycle:' + this.cycleCount;
         let currentCycle = this.cycleCount;
 
+        this.events.push(`Starting cycle ${currentCycle}`);
+
         // Write to zset, set timeout to check existence of element in zset
-        this.cluster.zadd(this.targets.zset!, currentCycle, key).then(()=>{
+        let p1 = this.cluster.zadd(this.targets.zset!, currentCycle, key).then(()=>{
             setTimeout(async ()=>{
                 let result = await this.cluster.zscore(this.targets.zset!,key).catch((err)=>{
-                    this.events.push(`Failed to read ${key} from zset ${this.targets.zset} \nERR: ${err.message}`)
+                    this.events.push(`[${currentCycle}][ZSET] Failed to read ${key} from zset ${this.targets.zset} \nERR: ${err.message}`)
                     return `ERROR`
                 })
                 if(result != currentCycle){
@@ -148,10 +150,10 @@ class DownTimeCheckerWorker {
         })
 
         // Write to hash, set timeout to check existence of element in hash
-        this.cluster.hset(this.targets.hash!, key, currentCycle).then(()=>{
+        let p2= this.cluster.hset(this.targets.hash!, key, currentCycle).then(()=>{
             setTimeout(async ()=>{
                 let result = await this.cluster.hget(this.targets.zset!,key).catch(err=>{
-                    this.events.push(`Failed to read ${key} from hash ${this.targets.hash} \nERR: ${err.message}`)
+                    this.events.push(`[${currentCycle}][HASH] Failed to read ${key} from hash ${this.targets.hash} \nERR: ${err.message}`)
                     return `ERROR`
                 })
                 if(result != currentCycle){
@@ -166,10 +168,10 @@ class DownTimeCheckerWorker {
 
 
         // Create new Key, set timeout to check existence of key
-        this.cluster.set(key, currentCycle).then(()=>{
+        let p3 = this.cluster.set(key, currentCycle).then(()=>{
             setTimeout(async ()=>{
                 let result = await this.cluster.get(key).catch(err=>{
-                    this.events.push(`Failed to read ${key} \nERR: ${err.message}`)
+                    this.events.push(`[${currentCycle}][KEY] Failed to read ${key} \nERR: ${err.message}`)
                     return `ERROR`
                 })
                 if(result != currentCycle){
@@ -180,6 +182,10 @@ class DownTimeCheckerWorker {
         }).catch(err=>{
             this.events.push(`Failed to set key ${key} with value ${this.cycleCount}\n ERR:${err.message}`);
             this.keyMiss.push(currentCycle);
+        })
+
+        Promise.all([p1, p2, p3]).then(()=>{
+            this.events.push(`Finished cycle ${currentCycle}`);
         })
 
         this.cycleCount++;
