@@ -162,7 +162,6 @@ export class DownTimeCheckerWorker {
     }
 
     private async executeCycle() {
-        let key = this.keyPrefix + ':cycle:' + this.cycleCount;
         let currentCycle = this.cycleCount;
 
         this.events.push(`[${currentCycle}] CYCLE STARTED`);
