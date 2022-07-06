@@ -70,7 +70,7 @@ export class DownTimeCheckerWorker {
         }, this.intervalBetweenCycles);
 
         this.durationTimeoutIdentifier = setTimeout(async () => {
-            this.events.push(`DURATION_TIMEOUT`);
+            this.events.push(`[${this.cycleCount}] DURATION TIMEOUT`);
             await this.stop();
         }, this.duration);
 
