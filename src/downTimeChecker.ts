@@ -104,14 +104,9 @@ export class DownTimeCheckerWorker {
         this.stopCallBacks.forEach(cb => cb(this));
     }
 
-    private async executeCycle() {
-        let key = this.keyPrefix + ':cycle:' + this.cycleCount;
-        let currentCycle = this.cycleCount;
-
-        this.events.push(`[${currentCycle}] CYCLE STARTED`);
-
-        // Write to zset, set timeout to check existence of element in zset
-        let p1 = this.cluster.zadd(this.targets.zset!, currentCycle, key).then(() => {
+    private checkZset(currentCycle: number){
+        let key = this.keyPrefix + ':cycle:' + currentCycle;
+        return this.cluster.zadd(this.targets.zset!, currentCycle, key).then(() => {
             setTimeout(async () => {
                 let result = await this.cluster.zscore(this.targets.zset!, key).catch((err) => {
                     this.events.push(`[${currentCycle}][ZSET] Failed to read ${key} from zset ${this.targets.zset} \nERR: ${err.message}`)
@@ -123,12 +118,14 @@ export class DownTimeCheckerWorker {
                 }
             }, this.readAfterWriteDelay);
         }).catch(err => {
-            this.events.push(`Failed to add element ${this.cycleCount} to zset ${this.targets.zset}\n ERR:${err.message}`);
+            this.events.push(`Failed to add element ${currentCycle} to zset ${this.targets.zset}\n ERR:${err.message}`);
             this.zsetMiss.push(currentCycle);
         })
+    }
 
-        // Write to hash, set timeout to check existence of element in hash
-        let p2 = this.cluster.hset(this.targets.hash!, key, currentCycle).then(() => {
+    private checkHash(currentCycle: number){
+        let key = this.keyPrefix + ':cycle:' + currentCycle;
+        return this.cluster.hset(this.targets.hash!, key, currentCycle).then(() => {
             setTimeout(async () => {
                 let result = await this.cluster.hget(this.targets.hash!, key).catch(err => {
                     this.events.push(`[${currentCycle}][HASH] Failed to read ${key} from hash ${this.targets.hash} \nERR: ${err.message}`)
@@ -140,13 +137,14 @@ export class DownTimeCheckerWorker {
                 }
             }, this.readAfterWriteDelay);
         }).catch(err => {
-            this.events.push(`Failed to set field ${key} with value ${this.cycleCount} at hash ${this.targets.hash}\n ERR:${err.message}`);
+            this.events.push(`Failed to set field ${key} with value ${currentCycle} at hash ${this.targets.hash}\n ERR:${err.message}`);
             this.hashMiss.push(currentCycle);
         })
+    }
 
-
-        // Create new Key, set timeout to check existence of key
-        let p3 = this.cluster.set(key, currentCycle).then(() => {
+    private checkSimpleKey(currentCycle: number){
+        let key = this.keyPrefix + ':cycle:' + currentCycle;
+        return this.cluster.set(key, currentCycle).then(() => {
             setTimeout(async () => {
                 let result = await this.cluster.get(key).catch(err => {
                     this.events.push(`[${currentCycle}][KEY] Failed to read ${key} \nERR: ${err.message}`)
@@ -158,9 +156,25 @@ export class DownTimeCheckerWorker {
                 }
             }, this.readAfterWriteDelay);
         }).catch(err => {
-            this.events.push(`Failed to set key ${key} with value ${this.cycleCount}\n ERR:${err.message}`);
+            this.events.push(`Failed to set key ${key} with value ${currentCycle}\n ERR:${err.message}`);
             this.keyMiss.push(currentCycle);
         })
+    }
+
+    private async executeCycle() {
+        let key = this.keyPrefix + ':cycle:' + this.cycleCount;
+        let currentCycle = this.cycleCount;
+
+        this.events.push(`[${currentCycle}] CYCLE STARTED`);
+
+        // Write to zset, set timeout to check existence of element in zset
+        let p1 = this.checkZset(currentCycle);
+
+        // Write to hash, set timeout to check existence of element in hash
+        let p2 = this.checkHash(currentCycle);
+
+        // Create new Key, set timeout to check existence of key
+        let p3 = this.checkSimpleKey(currentCycle);
 
         let cyclePromise = Promise.all([p1, p2, p3]).then(() => {
             this.events.push(`[${currentCycle}] CYCLE FINISHED`);
