@@ -9,7 +9,8 @@ class Events{
     public entries : string[] = [];
 
     public push(event: string){
-        this.entries.push(`${new Date().toISOString()}: ${event}`);
+        event = `${new Date().toISOString()}: ${event}`
+        this.entries.push(event);
         console.log(event)
     }
 }

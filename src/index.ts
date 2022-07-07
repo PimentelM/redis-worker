@@ -17,14 +17,21 @@ let run = async () => {
     let cluster = new RedisCluster({host: "test-cluster-2.pi8pe7.clustercfg.usw2.cache.amazonaws.com", port: 6379});
     let downtimeWatcher = new DownTimeCheckerWorker(
         cluster,
-        {},
-        "22-07-06:redis-tool-test-16:15",
+        {
+            zset: `cat-alpha`
+        },
+        "22-07-07:redis-tool-test-10:44",
         1000 * 60 * 60,
         1000,
         50
     )
 
     downtimeWatcher.start();
+
+    downtimeWatcher.onStop((instance)=>{
+        console.log(`Downtine: ${instance.downtime}`)
+        console.log(`Datalosss ${instance.dataLoss}`)
+    })
 
     let httpServer = express();
 
