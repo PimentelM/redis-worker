@@ -199,7 +199,7 @@ export class DownTimeCheckerWorker {
             let key = this.keyPrefix + ':cycle:' + cycle;
             exists = await this.cluster.get(key).catch(err => null).then(result => Number(result) === cycle)
             if (!exists) {
-                this.events.push(`[${cycle}] KEY MISSING`);
+                this.events.push(`[${cycle}] KEY ${key} MISSING`);
                 this.keyMissingAfter.push(cycle);
             }
 
