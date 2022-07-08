@@ -14,14 +14,17 @@ const readFile = promisify(_readFile)
 import express from "express";
 
 let run = async () => {
-    let cluster = new RedisCluster({host: "test-cluster-2.pi8pe7.clustercfg.usw2.cache.amazonaws.com", port: 6379});
+    let cluster = new RedisCluster({
+        host: "test-redis.exgkem.clustercfg.usw1.cache.amazonaws.com",
+        port: 6379
+    });
     let downtimeWatcher = new DownTimeCheckerWorker(
         cluster,
         {
             zset: `cat-alpha`
         },
         "22-07-08:redis-tool-test-production-replica-11:00",
-        1000 * 60 * 60 * 5,
+        1000 * 60 * 60 * 10,
         1000,
         50
     )
