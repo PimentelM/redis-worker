@@ -18,6 +18,7 @@ class Events{
 export class DownTimeCheckerWorker {
     private status: string = 'ready'
     private stopCallBacks: Function[] = [];
+    private cycleCallBacks: Function[] = [];
 
     private cycleIntervalIdentifier: any;
     private durationTimeoutIdentifier: any;
@@ -178,6 +179,8 @@ export class DownTimeCheckerWorker {
 
         let cyclePromise = Promise.all([p1, p2, p3]).then(() => {
             this.events.push(`[${currentCycle}] CYCLE FINISHED`);
+        }).then(() => {
+            this.cycleCallBacks.forEach(cb => cb(this))
         })
 
         this.allPromises.push(cyclePromise);
@@ -188,6 +191,10 @@ export class DownTimeCheckerWorker {
 
     public onStop(callback: (instance: DownTimeCheckerWorker) => void) {
         this.stopCallBacks.push(callback);
+    }
+    
+    public onCycle(callback: (instance: DownTimeCheckerWorker) => void) {
+        this.cycleCallBacks.push(callback);
     }
 
 

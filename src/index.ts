@@ -20,8 +20,8 @@ let run = async () => {
         {
             zset: `cat-alpha`
         },
-        "22-07-07:redis-tool-test-10:44",
-        1000 * 60 * 60,
+        "22-07-08:redis-tool-test-production-replica-11:00",
+        1000 * 60 * 60 * 5,
         1000,
         50
     )
@@ -31,6 +31,11 @@ let run = async () => {
     downtimeWatcher.onStop((instance)=>{
         console.log(`Downtine: ${instance.downtime}`)
         console.log(`Datalosss ${instance.dataLoss}`)
+    })
+
+    downtimeWatcher.onCycle((instance)=>{
+        console.log(`Current Downtine: ${instance.downtime}`)
+        console.log(`Current Datalosss ${instance.dataLoss}`)
     })
 
     let httpServer = express();
