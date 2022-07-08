@@ -32,13 +32,14 @@ let run = async () => {
     downtimeWatcher.start();
 
     downtimeWatcher.onStop((instance)=>{
-        console.log(`Downtine: ${instance.downtime}`)
-        console.log(`Datalosss ${instance.dataLoss}`)
+        console.log(`Downtime %: ${instance.downtime}`)
+        console.log(`Datalosss %: ${instance.dataLoss}`)
+        console.log(`Errors in following cycles: ${instance.cyclesWithErrors()}`)
     })
 
     downtimeWatcher.onCycle((instance)=>{
-        console.log(`Current Downtine: ${instance.downtime}`)
-        console.log(`Current Datalosss ${instance.dataLoss}`)
+        console.log(`Current Downtime: ${instance.downtime}`)
+        console.log(`Current Datalosss: ${instance.dataLoss}`)
     })
 
     let httpServer = express();

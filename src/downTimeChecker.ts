@@ -23,13 +23,13 @@ export class DownTimeCheckerWorker {
     private cycleIntervalIdentifier: any;
     private durationTimeoutIdentifier: any;
 
-    private zsetMiss: number[] = [];
-    private keyMiss: number[] = [];
-    private hashMiss: number[] = [];
+    public zsetMiss: number[] = [];
+    public keyMiss: number[] = [];
+    public hashMiss: number[] = [];
 
-    private zsetMissingAfter: number[] = [];
-    private keyMissingAfter: number[] = [];
-    private hashMissingAfter: number[] = [];
+    public zsetMissingAfter: number[] = [];
+    public keyMissingAfter: number[] = [];
+    public hashMissingAfter: number[] = [];
 
     private cycleCount = 0;
 
@@ -261,6 +261,10 @@ export class DownTimeCheckerWorker {
 
     public timestampOfCycle(cycle: number): number {
         return this.startTime!.getTime() + (cycle * this.intervalBetweenCycles);
+    }
+
+    public cyclesWithErrors(): Set<number> {
+        return new Set([...this.hashMissingAfter,...this.zsetMissingAfter,...this.keyMissingAfter,...this.hashMiss,...this.zsetMiss,...this.keyMiss]);
     }
 
 
