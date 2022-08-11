@@ -9,19 +9,42 @@ import {exec as _exec} from 'child_process';
 const exec = promisify(_exec);
 
 import {readFile as _readFile} from 'fs';
+import {DownTimeCheckerWorker} from "./downTimeChecker";
 const readFile = promisify(_readFile);
 
 const host = "127.0.0.1";
 const port = 50001;
 
 describe("Redis handmade API", () => {
+    let downTimeChecker: DownTimeCheckerWorker;
 
     beforeAll(async () => {
         // Restart redis server
         console.log(await restartRedis());
+        let cluster = new RedisCluster({host, port});
+        downTimeChecker = new DownTimeCheckerWorker(
+            cluster,
+            {},
+            "TEST",
+            60000,
+            50,
+            1
+        );
+
+        downTimeChecker.onStop(worker=>{
+            console.log(worker.events.entries.join("\n"))
+            console.log(`DOWNTIME: ${worker.downtime * 100}%`)
+            console.log(`DATA LOSS: ${worker.dataLoss * 100}%`)
+        });
+
+        downTimeChecker.start();
     })
 
     afterAll(async () => {
+        await downTimeChecker.stop();
+        expect(downTimeChecker.downtime).toBe(0);
+        expect(downTimeChecker.dataLoss).toBe(0);
+
         // Stop redis server
         console.log(await stopRedis());
     })
