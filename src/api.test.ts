@@ -9,7 +9,7 @@ import {exec as _exec} from 'child_process';
 const exec = promisify(_exec);
 
 import {readFile as _readFile} from 'fs';
-import {DownTimeCheckerWorker} from "./downTimeChecker";
+import {DownTimeCheckerWorker} from "./apps/downTimeChecker";
 const readFile = promisify(_readFile);
 
 const host = "127.0.0.1";

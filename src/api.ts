@@ -8,7 +8,7 @@ import {randomBytes} from "crypto";
 
 
 export class RedisCluster {
-    private ioredis: Cluster;
+    public ioredis: Cluster;
     private node: RedisNode;
     private nodeCache: { [key: string]: RedisNode } = {};
 
@@ -68,6 +68,10 @@ export class RedisCluster {
 
     async get(key: string) {
         return new Promise((resolve, reject) => this.ioredis.get(key).then(resolve).catch(reject));
+    }
+
+    async del(key: string) {
+        return new Promise((resolve, reject) => this.ioredis.del(key).then(resolve).catch(reject));
     }
 
     async hset(key: string, field: string, value: string | Buffer | number) {
@@ -151,6 +155,10 @@ export class RedisCluster {
 
     async memoryUsage(key: string) {
         return new Promise((resolve, reject) => this.ioredis.memory("USAGE", key).then(resolve).catch(reject));
+    }
+
+    async expire(key: string, ttl: number, option? : "XX" | "NX" | "GT" | "LT") {
+        return new Promise((resolve, reject) => this.ioredis.expire(key, ttl, option as any).then(resolve).catch(reject));
     }
 }
 

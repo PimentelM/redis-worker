@@ -1,4 +1,4 @@
-import {RedisCluster} from "./api";
+import {RedisCluster} from "../api";
 
 interface KeyTargets {
     zset?: string;
