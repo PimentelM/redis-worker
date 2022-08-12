@@ -158,7 +158,16 @@ export class RedisCluster {
     }
 
     async expire(key: string, ttl: number, option? : "XX" | "NX" | "GT" | "LT") {
-        return new Promise((resolve, reject) => this.ioredis.expire(key, ttl, option as any).then(resolve).catch(reject));
+        if(option) return new Promise((resolve, reject) => this.ioredis.expire(key, ttl, option as any).then(resolve).catch(reject));
+        return new Promise((resolve, reject) => this.ioredis.expire(key, ttl).then(resolve).catch(reject));
+    }
+
+    async exists(...args : string[]) {
+        return new Promise((resolve, reject) => this.ioredis.exists(args).then(resolve).catch(reject));
+    }
+
+    async ttl(key: string) {
+        return new Promise((resolve, reject) => this.ioredis.ttl(key).then(resolve).catch(reject));
     }
 }
 

@@ -8,7 +8,9 @@
 
 import {RedisCluster} from "../api";
 import {chunk} from "lodash";
-import pLimit from 'p-limit';
+// import pLimit from 'p-limit';
+
+// const pLimit = require('p-limit');
 
 interface DeleteLearderBoardWorkerOptions {
     unsafe?: boolean;
@@ -26,7 +28,7 @@ const DEFAULT_OPTIONS: DeleteLearderBoardWorkerOptions = {
     maxNumberOfParallellDeletes: 10,
 }
 
-class DeleteLeaderBoardWorker {
+export class DeleteLeaderboardWorker {
     private options : DeleteLearderBoardWorkerOptions;
 
     private onStopCallBacks = [];
@@ -39,24 +41,31 @@ class DeleteLeaderBoardWorker {
                 options: Partial<DeleteLearderBoardWorkerOptions> = {}) {
         this.options = {...DEFAULT_OPTIONS, ...options};
 
-        this.limitConcurrency = pLimit(this.options.maxNumberOfParallellDeletes);
+        this.limitConcurrency = (fn) => fn();  //pLimit(this.options.maxNumberOfParallellDeletes);
     }
 
 
     async run(){
+        console.log(`Deleting leaderboard ${this.getLeaderBoardZsetKey()}`);
 
         // Delete leaderboard
         await this.deleteLeaderBoard();
 
+
         // Start scanning for leaderboard related keys and deleting them in batches
         let cursor = "0";
         do {
+            if(cursor === "0") console.log(`Starting next iteration at cursor ${cursor}...`);
+
             let [newCursor, elements] = await this.scanForLeaderBoardRelatedKeys(cursor);
+
+            console.log(`Found ${elements.length} keys to delete, now at cursor ${newCursor}`);
 
             // Delete all the keys in batches while limiting concurrency
             for(let batch of chunk(elements, this.options.keyDeleteBatchSize)){
-                await Promise.all(batch.map(key =>
-                    this.limitConcurrency( () => this.deleteKey(key))));
+                await Promise.all(batch.map(key => this.deleteKey(key)));
+
+                console.log(`Deleted ${batch.length} keys of ${elements.length}`);
             }
 
             cursor = newCursor;
@@ -100,10 +109,6 @@ class DeleteLeaderBoardWorker {
     private getLeaderBoardZsetKey(){
         return this.eventId;
     }
-
-
-
-
 
 
 }
