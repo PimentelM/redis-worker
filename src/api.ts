@@ -16,10 +16,7 @@ export class RedisCluster {
 
     constructor(private host: { host: string, port: number },) {
         this._hostInfo = host;
-        this.ioredis = new Cluster([host, ...[1,2,3,4,5].map(x=> ({
-            host: host.host,
-            port: host.port + x
-        }))],{
+        this.ioredis = new Cluster([host],{
             scaleReads: 'slave'
         });
         this.node = new RedisNode(this.host.host, this.host.port);
