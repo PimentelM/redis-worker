@@ -6,6 +6,23 @@ import _ from "lodash";
 import calculateSlot from "cluster-key-slot";
 import {randomBytes} from "crypto";
 
+const retryStrategy = options => {
+    if (options.error && options.error.code === 'ECONNREFUSED') {
+        // End reconnecting on a specific error and flush all commands with a individual error
+        return new Error('The server refused the connection');
+    }
+    if (options.total_retry_time > 1000 * 60 * 60) {
+        // End reconnecting after a specific timeout and flush all commands with a individual error
+        return new Error('Redis retry time exhausted');
+    }
+    if (options.attempt > 10) {
+        // End reconnecting with built in error
+        return undefined;
+    }
+    // reconnect after
+    return Math.min(options.attempt * 100, 3000);
+};
+
 
 export class RedisCluster {
     public ioredis: Cluster;
@@ -54,9 +71,9 @@ export class RedisCluster {
         return result;
     }
 
-    async dump(key): Promise<Buffer>{
-        return new Promise((resolve, reject) => this.ioredis.dumpBuffer(key).then(resolve).catch(reject));
-    }
+    // async dump(key): Promise<Buffer>{
+    //     return new Promise((resolve, reject) => this.ioredis.dumpBuffer(key).then(resolve).catch(reject));
+    // }
 
     async getKeysInSlot(slot: number): Promise<string[]> {
         let owner = await this.getSlotOwner(slot);
@@ -152,7 +169,7 @@ export class RedisCluster {
 
     async flushdb() {
         await new Promise((resolve, reject) => this.ioredis.flushall().then(resolve).catch(reject));
-        return new Promise((resolve, reject) => this.ioredis.flushdb("SYNC").then(resolve).catch(reject));
+        return new Promise((resolve, reject) => this.ioredis.flushdb("sync").then(resolve).catch(reject));
     }
 
     async memoryUsage(key: string) {
@@ -160,12 +177,12 @@ export class RedisCluster {
     }
 
     async expire(key: string, ttl: number, option? : "XX" | "NX" | "GT" | "LT") {
-        if(option) return new Promise((resolve, reject) => this.ioredis.expire(key, ttl, option as any).then(resolve).catch(reject));
+        if(option) return new Promise((resolve, reject) => this.ioredis.expire(key, ttl).then(resolve).catch(reject));
         return new Promise((resolve, reject) => this.ioredis.expire(key, ttl).then(resolve).catch(reject));
     }
 
-    async exists(...args : string[]) {
-        return new Promise((resolve, reject) => this.ioredis.exists(args).then(resolve).catch(reject));
+    async exists(key : string) : Promise<boolean>{
+        return new Promise((resolve, reject) => this.ioredis.exists(key).then(x=>resolve(x!==0)).catch(reject));
     }
 
     async ttl(key: string) {

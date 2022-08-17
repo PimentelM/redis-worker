@@ -47,23 +47,23 @@ describe("Delete Leaderboard Worker", () => {
     describe("Unsafe Mode > ", () => {
         it("should delete the leaderboard", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {safe: true}
+                {safe: false}
             );
 
             await worker.run();
 
-            expect(await cluster.exists("event-id")).toBe(0);
+            expect(await cluster.exists("event-id")).toBe(false);
         });
 
         it("should delete leaderboard related keys", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {safe: true}
+                {safe: false}
             );
 
             await worker.run();
 
-            expect(await cluster.exists("{event-id}pid1")).toBe(0);
-            expect(await cluster.exists("{event-id}pid2")).toBe(0);
+            expect(await cluster.exists("{event-id}pid1")).toBe(false);
+            expect(await cluster.exists("{event-id}pid2")).toBe(false);
         });
 
     });
@@ -72,26 +72,26 @@ describe("Delete Leaderboard Worker", () => {
 
         it("should not delete the leaderboard but set it's expire time", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {safe: false}
+                {safe: true}
             );
 
             await worker.run();
 
-            expect(await cluster.exists("event-id")).toBe(1);
+            expect(await cluster.exists("event-id")).toBe(true);
             expect(await cluster.ttl("event-id")).toBeGreaterThan(0);
         });
 
         it("should not delete leaderboard related keys but set their expire time", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {safe: false}
+                {safe: true}
             );
 
             await worker.run();
 
-            expect(await cluster.exists("{event-id}pid1")).toBe(1);
+            expect(await cluster.exists("{event-id}pid1")).toBe(true);
             expect(await cluster.ttl("{event-id}pid1")).toBeGreaterThan(0);
 
-            expect(await cluster.exists("{event-id}pid2")).toBe(1);
+            expect(await cluster.exists("{event-id}pid2")).toBe(true);
             expect(await cluster.ttl("{event-id}pid2")).toBeGreaterThan(0);
 
         });

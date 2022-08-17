@@ -79,39 +79,39 @@ describe("Redis handmade API", () => {
             expect(owner.port).toBe(expectedOwnerPort);
         })
 
-        it("Can dump value", async () => {
-            let key = "dumpKey";
-            let value = "dumpValue";
-            await cluster.set(key, value);
+        // it("Can dump value", async () => {
+        //     let key = "dumpKey";
+        //     let value = "dumpValue";
+        //     await cluster.set(key, value);
+        //
+        //     let dump : Buffer = await cluster.dump(key);
+        //
+        //     expect(dump).toBeDefined();
+        // })
 
-            let dump : Buffer = await cluster.dump(key);
+        // it("Can restore value", async () => {
+        //     let key = "restoreKey";
+        //     let dump = Buffer.from("000964756d7056616c75650a0082aa58764e454928", "hex");
+        //
+        //     await cluster.restore(key, dump);
+        //
+        //     let restoredValue = await cluster.get(key);
+        //     expect(restoredValue).toBe("dumpValue");
+        //     expect(await cluster.clusterNodesRaw()).not.toContain("fail")
+        // })
 
-            expect(dump).toBeDefined();
-        })
-
-        it("Can restore value", async () => {
-            let key = "restoreKey";
-            let dump = Buffer.from("000964756d7056616c75650a0082aa58764e454928", "hex");
-
-            await cluster.restore(key, dump);
-
-            let restoredValue = await cluster.get(key);
-            expect(restoredValue).toBe("dumpValue");
-            expect(await cluster.clusterNodesRaw()).not.toContain("fail")
-        })
-
-        it("Can restore really big dump", async () => {
-            let key = `restoreKey${generateRandomHexString(16)}`;
-            let dump = await readFile("./orderedSetDump")
-
-            await cluster.restore(key, dump);
-
-            let restoredValue = await cluster.zrange(key,0,2);
-            expect(restoredValue).toHaveLength(3);
-            let clusterNodesRaw = await cluster.clusterNodesRaw();
-            expect(clusterNodesRaw.includes("fail")).toBeFalsy();
-
-        },20000)
+        // it("Can restore really big dump", async () => {
+        //     let key = `restoreKey${generateRandomHexString(16)}`;
+        //     let dump = await readFile("./orderedSetDump")
+        //
+        //     await cluster.restore(key, dump);
+        //
+        //     let restoredValue = await cluster.zrange(key,0,2);
+        //     expect(restoredValue).toHaveLength(3);
+        //     let clusterNodesRaw = await cluster.clusterNodesRaw();
+        //     expect(clusterNodesRaw.includes("fail")).toBeFalsy();
+        //
+        // },20000)
 
 
         it("Can set and get ordered set", async () => {

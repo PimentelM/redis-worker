@@ -49,7 +49,7 @@ export class DeleteLeaderboardWorker {
 
     async run(){
         this.log(`Running worker with options: ${JSON.stringify(this.options, null, '\t')}`);
-        
+
         this.log(`Querying for leaderboard size...${this.eventId}`);
         let leaderboardLength = await this.redisCluster.ioredis.zcard(this.getLeaderBoardZsetKey());
 
