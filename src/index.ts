@@ -15,10 +15,10 @@ program
     .option('--safe', 'Safe mode - sets the ttl of keys to 30 days or value specified in --ttl instead of deleting them')
     .option('--ttl <value>', 'TTL value for safe mode')
     .requiredOption('-h, --host <value>', 'Host')
-    .requiredOption('-p, --port <value>', 'Port')
+    .requiredOption('-p, --port <value>', 'Port', "6379")
     .action(async (eventId, options) => {
 
-        let cluster = new RedisCluster({host: options.host, port: options.port});
+        let cluster = new RedisCluster({host: options.host, port: parseInt(options.port,10)});
 
         // options is being passed directly into the worker here, we are not validating it for now.
         let worker = new DeleteLeaderboardWorker(cluster, eventId, options);

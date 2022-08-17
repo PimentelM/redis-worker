@@ -49,8 +49,8 @@ export class DeleteLeaderboardWorker {
 
     async run(){
         this.log(`Running worker with options: ${JSON.stringify(this.options, null, '\t')}`);
-        this.log(`Deleting leaderboard for event ${this.eventId}`);
-
+        
+        this.log(`Querying for leaderboard size...${this.eventId}`);
         let leaderboardLength = await this.redisCluster.ioredis.zcard(this.getLeaderBoardZsetKey());
 
         this.log(`Found ${leaderboardLength} entries in leaderboard ${this.getLeaderBoardZsetKey()}`);
@@ -67,7 +67,7 @@ export class DeleteLeaderboardWorker {
                 cursor = nextCursor;
             }
 
-        }
+        } else this.log(`No related keys to delete.`);
 
         // Delete leaderboard
         this.log(`Deleting leaderboard ${this.getLeaderBoardZsetKey()}`);
