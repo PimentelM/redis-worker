@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "test": "yarn test",
-    "dev": "ts-node ./src"
+    "dev": "ts-node ./src",
+    "redis-tool" : "npx ts-node ./src"
   },
   "author": "Mateus Pimentel",
   "license": "ISC",
