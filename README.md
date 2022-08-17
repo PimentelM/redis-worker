@@ -19,4 +19,10 @@ Most important commands are fully tested using local redis cluster with 3 shards
 
 
 
+## Details about the "API"
+
+I first started creating the class RedisCluster as an abstraction on top of ioredis and tedis since I intended to combine both libraries in a single toolset, but I soon realized that composing both libraries into a single class would be too much work and I decided to switch to the expose-ioredis-instance approach instead, since it can work aswell. The problem I faced with ioredis is that it does'nt seems to use proper promises and the implementation they did was'nt compatible with async await syntax. I don't know what I did but now it is working. Not sure if it was due to some change in tsconfig.json or it's just some methods that don't work as proper promises.
+
+
+
 
