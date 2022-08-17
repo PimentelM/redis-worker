@@ -14,6 +14,8 @@ program
     .argument('eventId', 'Event Id')
     .option('--safe', 'Safe mode - sets the ttl of keys to 30 days or value specified in --ttl instead of deleting them')
     .option('--ttl <value>', 'TTL value for safe mode')
+    .option('--batchSize <value>', 'Batch size to set the rate at which keys are going to be obtained and deleted', "1000")
+    .option('--maxParallelism <value>', 'Maximum number of parallel calls to redis', "100")
     .requiredOption('-h, --host <value>', 'Host')
     .requiredOption('-p, --port <value>', 'Port', "6379")
     .action(async (eventId, options) => {

@@ -15,15 +15,15 @@ import {chunk} from "lodash";
 interface DeleteLearderBoardWorkerOptions {
     safe?: boolean;
     ttl?: number;
-    keyScanBatchSize: number;
-    maxNumberOfParallellDeletes: number;
+    batchSize: number;
+    maxParallelism: number;
 }
 
 const ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 30;
 
 const DEFAULT_OPTIONS: DeleteLearderBoardWorkerOptions = {
-    keyScanBatchSize: 100,
-    maxNumberOfParallellDeletes: 10,
+    batchSize: 1000,
+    maxParallelism: 100,
 }
 
 export class DeleteLeaderboardWorker {
@@ -77,7 +77,7 @@ export class DeleteLeaderboardWorker {
     }
 
     private async scanForLeaderBoardRelatedKeys(cursor: number) : Promise<[cursor: number, elements: string[]]> {
-        let cursorEnd = cursor + this.options.keyScanBatchSize - 1;
+        let cursorEnd = cursor + this.options.batchSize - 1;
         return new Promise((resolve, reject) => {
             this.redisCluster.zrange(this.getLeaderBoardZsetKey(),cursor, cursorEnd)
                 .then((result)=> resolve([cursorEnd + 1, result.map(key=> this.getRelatedKeyFromPid(key))]))
@@ -103,7 +103,7 @@ export class DeleteLeaderboardWorker {
         if(!this.options.safe) {
             await this.redisCluster.del(...keys);
         } else {
-            for (let keysBatch of chunk(keys, this.options.maxNumberOfParallellDeletes)){
+            for (let keysBatch of chunk(keys, this.options.maxParallelism)){
                 await Promise.all(keysBatch.map(key=> this.redisCluster.expire(key, this.options.ttl ?? ONE_MONTH_IN_SECONDS)));
             }
         }
