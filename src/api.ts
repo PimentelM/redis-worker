@@ -16,7 +16,12 @@ export class RedisCluster {
 
     constructor(private host: { host: string, port: number },) {
         this._hostInfo = host;
-        this.ioredis = new Cluster([this.host]);
+        this.ioredis = new Cluster([host, ...[1,2,3,4,5].map(x=> ({
+            host: host.host,
+            port: host.port + x
+        }))],{
+            scaleReads: 'slave'
+        });
         this.node = new RedisNode(this.host.host, this.host.port);
     }
 
@@ -70,8 +75,8 @@ export class RedisCluster {
         return new Promise((resolve, reject) => this.ioredis.get(key).then(resolve).catch(reject));
     }
 
-    async del(key: string) {
-        return new Promise((resolve, reject) => this.ioredis.del(key).then(resolve).catch(reject));
+    async del(...keys: string[]) {
+        return new Promise((resolve, reject) => this.ioredis.del(...keys).then(resolve).catch(reject));
     }
 
     async hset(key: string, field: string, value: string | Buffer | number) {
@@ -82,10 +87,10 @@ export class RedisCluster {
         return new Promise((resolve, reject) => this.ioredis.zadd(key, score, value, ...args).then(resolve).catch(reject));
     }
 
-    async zrange(key: string, min: number, max: number, withscores?: "WITHSCORES") {
+    async zrange(key: string, start: number, stop: number, withscores?: "WITHSCORES") : Promise<string[]> {
         if (withscores)
-            return new Promise((resolve, reject) => this.ioredis.zrange(key, min, max, "WITHSCORES").then(resolve).catch(reject));
-        return new Promise((resolve, reject) => this.ioredis.zrange(key, min, max).then(resolve).catch(reject));
+            return new Promise((resolve, reject) => this.ioredis.zrange(key, start, stop, "WITHSCORES").then(resolve).catch(reject));
+        return new Promise((resolve, reject) => this.ioredis.zrange(key, start, stop).then(resolve).catch(reject));
     }
 
     async zscore(key: string, member: string) {

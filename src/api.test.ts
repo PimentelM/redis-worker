@@ -53,7 +53,7 @@ describe("Redis handmade API", () => {
 
     beforeEach(async () => {
         cluster = new RedisCluster({host, port});
-       // await cluster.flushdb();
+        await cluster.flushdb();
     });
 
     afterEach(async () => {

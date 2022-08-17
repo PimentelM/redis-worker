@@ -16,15 +16,13 @@ interface DeleteLearderBoardWorkerOptions {
     unsafe?: boolean;
     ttl?: number;
     keyScanBatchSize: number;
-    keyDeleteBatchSize: number;
     maxNumberOfParallellDeletes: number;
 }
 
 const ONE_MONTH_IN_SECONDS = 60 * 60 * 24 * 30;
 
 const DEFAULT_OPTIONS: DeleteLearderBoardWorkerOptions = {
-    keyScanBatchSize: 1000,
-    keyDeleteBatchSize: 250,
+    keyScanBatchSize: 100,
     maxNumberOfParallellDeletes: 10,
 }
 
@@ -44,47 +42,48 @@ export class DeleteLeaderboardWorker {
         this.limitConcurrency = (fn) => fn();  //pLimit(this.options.maxNumberOfParallellDeletes);
     }
 
-
-    async run(){
-        console.log(`Deleting leaderboard ${this.getLeaderBoardZsetKey()}`);
-
-        // Delete leaderboard
-        await this.deleteLeaderBoard();
-
-
-        // Start scanning for leaderboard related keys and deleting them in batches
-        let cursor = "0";
-        do {
-            if(cursor === "0") console.log(`Starting next iteration at cursor ${cursor}...`);
-
-            let [newCursor, elements] = await this.scanForLeaderBoardRelatedKeys(cursor);
-
-            console.log(`Found ${elements.length} keys to delete, now at cursor ${newCursor}`);
-
-            // Delete all the keys in batches while limiting concurrency
-            for(let batch of chunk(elements, this.options.keyDeleteBatchSize)){
-                await Promise.all(batch.map(key => this.deleteKey(key)));
-
-                console.log(`Deleted ${batch.length} keys of ${elements.length}`);
-            }
-
-            cursor = newCursor;
-        } while(cursor !== "0");
+    log(msg){
+        console.log(msg);
     }
 
-    private async scanForLeaderBoardRelatedKeys(cursor: string) : Promise<[cursor: string, elements: string[]]> {
+
+    async run(){
+
+        let leaderboardLength = await this.redisCluster.ioredis.zcard(this.getLeaderBoardZsetKey());
+
+        this.log(`Found ${leaderboardLength} entries in leaderboard ${this.getLeaderBoardZsetKey()}`);
+        if(leaderboardLength > 0){
+            this.log(`Deleting leaderboard related keys...`);
+
+            let cursor = 0;
+
+            while(cursor <= leaderboardLength){
+                this.log(`Getting keys at cursor ${cursor}...`);
+                let [nextCursor, keys] = await this.scanForLeaderBoardRelatedKeys(cursor);
+                this.log(`Found ${keys.length} keys to delete, starting delete...`);
+                await this.deleteKeys(keys);
+                cursor = nextCursor;
+            }
+
+        }
+
+        // Delete leaderboard
+        this.log(`Deleting leaderboard ${this.getLeaderBoardZsetKey()}`);
+        await this.deleteLeaderBoard();
+
+    }
+
+    private async scanForLeaderBoardRelatedKeys(cursor: number) : Promise<[cursor: number, elements: string[]]> {
+        let cursorEnd = cursor + this.options.keyScanBatchSize - 1;
         return new Promise((resolve, reject) => {
-            this.redisCluster.ioredis.scan(cursor,
-                "MATCH", this.getPidUserNameKeyMatchPattern(),
-            "COUNT", this.options.keyScanBatchSize,
-                "TYPE", "string")
-                .then(resolve)
+            this.redisCluster.zrange(this.getLeaderBoardZsetKey(),cursor, cursorEnd)
+                .then((result)=> resolve([cursorEnd + 1, result.map(key=> this.getRelatedKeyFromPid(key))]))
                 .catch(reject);
         });
     }
 
-    private getPidUserNameKeyMatchPattern(){
-        return `{${this.getLeaderBoardZsetKey()}}*`
+    private getRelatedKeyFromPid(pid){
+        return `{${this.getLeaderBoardZsetKey()}}${pid}`
     }
 
     private async deleteLeaderBoard(){
@@ -96,12 +95,14 @@ export class DeleteLeaderboardWorker {
         }
     }
 
-    private async deleteKey(key: string) : Promise<void> {
+    private async deleteKeys(keys: string[]) : Promise<void> {
         // Delete a simple key
         if(this.options.unsafe) {
-            await this.redisCluster.del(key);
+            await this.redisCluster.del(...keys);
         } else {
-            await this.redisCluster.expire(key, this.options.ttl ?? ONE_MONTH_IN_SECONDS );
+            for (let keysBatch of chunk(keys, this.options.maxNumberOfParallellDeletes)){
+                await Promise.all(keysBatch.map(key=> this.redisCluster.expire(key, this.options.ttl ?? ONE_MONTH_IN_SECONDS)));
+            }
         }
 
     }

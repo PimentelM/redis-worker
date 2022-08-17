@@ -21,7 +21,7 @@ describe("Delete Leaderboard Worker", () => {
         // Stop redis server
         console.log(await stopRedis());
 
-        process.exit(0);
+        // process.exit(0);
     })
 
     beforeEach(async () => {

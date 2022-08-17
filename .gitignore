@@ -136,3 +136,5 @@ appendonlydir/
 *.conf
 
 *.aof
+
+.idea/
