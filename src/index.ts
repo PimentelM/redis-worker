@@ -28,6 +28,26 @@ program
         process.exit(0);
     });
 
+program.
+    command('health-check')
+    .requiredOption('-h, --host <value>', 'Host')
+    .requiredOption('-p, --port <value>', 'Port', "6379")
+    .action(async (options) => {
+        let cluster = new RedisCluster({host: options.host, port: parseInt(options.port,10)});
+
+        console.log(`Querying cluster some info...`)
+
+        let info = await cluster.clusterNodesRaw();
+
+        console.log(info);
+
+
+        process.exit(0);
+    });
+
+
+
+
 program.parse(process.argv);
 
 
