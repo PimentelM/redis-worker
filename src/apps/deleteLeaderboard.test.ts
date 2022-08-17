@@ -47,7 +47,7 @@ describe("Delete Leaderboard Worker", () => {
     describe("Unsafe Mode > ", () => {
         it("should delete the leaderboard", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {unsafe: true}
+                {safe: true}
             );
 
             await worker.run();
@@ -57,7 +57,7 @@ describe("Delete Leaderboard Worker", () => {
 
         it("should delete leaderboard related keys", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {unsafe: true}
+                {safe: true}
             );
 
             await worker.run();
@@ -72,7 +72,7 @@ describe("Delete Leaderboard Worker", () => {
 
         it("should not delete the leaderboard but set it's expire time", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {unsafe: false}
+                {safe: false}
             );
 
             await worker.run();
@@ -83,7 +83,7 @@ describe("Delete Leaderboard Worker", () => {
 
         it("should not delete leaderboard related keys but set their expire time", async () => {
             const worker = new DeleteLeaderboardWorker(cluster, "event-id",
-                {unsafe: false}
+                {safe: false}
             );
 
             await worker.run();

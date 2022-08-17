@@ -13,7 +13,7 @@ import {chunk} from "lodash";
 // const pLimit = require('p-limit');
 
 interface DeleteLearderBoardWorkerOptions {
-    unsafe?: boolean;
+    safe?: boolean;
     ttl?: number;
     keyScanBatchSize: number;
     maxNumberOfParallellDeletes: number;
@@ -48,6 +48,8 @@ export class DeleteLeaderboardWorker {
 
 
     async run(){
+        this.log(`Running worker with options: ${JSON.stringify(this.options, null, '\t')}`);
+        this.log(`Deleting leaderboard for event ${this.eventId}`);
 
         let leaderboardLength = await this.redisCluster.ioredis.zcard(this.getLeaderBoardZsetKey());
 
@@ -71,6 +73,7 @@ export class DeleteLeaderboardWorker {
         this.log(`Deleting leaderboard ${this.getLeaderBoardZsetKey()}`);
         await this.deleteLeaderBoard();
 
+        this.log(`Done`);
     }
 
     private async scanForLeaderBoardRelatedKeys(cursor: number) : Promise<[cursor: number, elements: string[]]> {
@@ -88,7 +91,7 @@ export class DeleteLeaderboardWorker {
 
     private async deleteLeaderBoard(){
         // Delete the Zset representing the leaderboard
-        if(this.options.unsafe) {
+        if(!this.options.safe) {
             await this.redisCluster.del(this.getLeaderBoardZsetKey());
         } else {
             await this.redisCluster.expire(this.getLeaderBoardZsetKey(), this.options.ttl ?? ONE_MONTH_IN_SECONDS );
@@ -97,7 +100,7 @@ export class DeleteLeaderboardWorker {
 
     private async deleteKeys(keys: string[]) : Promise<void> {
         // Delete a simple key
-        if(this.options.unsafe) {
+        if(!this.options.safe) {
             await this.redisCluster.del(...keys);
         } else {
             for (let keysBatch of chunk(keys, this.options.maxNumberOfParallellDeletes)){
